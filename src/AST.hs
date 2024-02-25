@@ -1,7 +1,5 @@
 module AST where
 
--- https://smunix.github.io/www.stephendiehl.com/llvm/index.html
--- https://blog.josephmorag.com/posts/mcc1/
 
 data Op
     = Add
@@ -10,34 +8,35 @@ data Op
     | Div
     deriving (Eq, Ord, Show)
 
+data Type
+    = TInt
+    | TFloat
+    deriving (Eq, Ord, Show)
+
 type Name = String
+
+data Variable
+    = UntypedVar Name
+    | TypedVar Type Name
+    deriving (Eq, Ord, Show)
 
 data Expr
     = IntLit Integer
     | FloatLit Double
-    | Var Name
+    | Variable Variable
     | BinOp Op Expr Expr
     | Call Name [Expr]
     | Assignment Expr Expr
     deriving (Eq, Ord, Show)
 
-data Type
-    = TyInt
-    | TyFloat
-    deriving (Eq, Ord, Show)
-
-data Bind = Bind 
-    { bindType :: Type
-    , bindName :: Expr
-    }
+data Block = Block [Expr]
     deriving (Eq, Ord, Show)
 
 data Function = Function
     { functionName :: Name
+    , functionArguments :: [Variable]
     , functionReturnType :: Type
-    , functionArguments :: [Bind]
-    , functionLocals :: [Bind]
-    , functionBody :: [Expr]
+    , functionBody :: Block
     }
     deriving (Eq, Ord, Show)
 

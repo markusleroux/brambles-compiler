@@ -24,3 +24,20 @@ lexer = Tok.makeTokenParser languageDef
             -- Other
             , Tok.caseSensitive = True
             }
+
+
+integerType = Tok.reserved lexer "int"
+floatType = Tok.reserved lexer "float"
+identifier = Tok.identifier lexer
+
+integer = Tok.integer lexer
+float = Tok.float lexer
+
+parens = Tok.parens lexer
+braces = Tok.braces lexer 
+commas = Tok.commaSep lexer
+semicolon = Tok.reservedOp lexer ";"
+
+fn = Tok.reserved lexer "fn"
+returnArrow = Tok.reservedOp lexer "->"
+assignment = Tok.reservedOp lexer "="
