@@ -50,6 +50,8 @@ executable compiler
     -- other-extensions:
     build-depends:
         base ^>=4.15.1.0,
+        haskeline ^>=0.8.2.1,
+        parsec ^>=3.1.17.0,
         compiler-lib
 
     hs-source-dirs:   app
