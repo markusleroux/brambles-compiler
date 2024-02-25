@@ -51,3 +51,14 @@ functionP = Function
         <*> blockP
         <?> "function"
 
+
+programP :: Parser Program
+programP = do
+        spaceConsumer
+        globalsAndFunctions <- eitherParseComb exprP functionP `endBy` semicolon
+        eof
+        return $ Program (lefts globalsAndFunctions) (rights globalsAndFunctions)
+    where
+        eitherParseComb :: Parser a -> Parser b -> Parser (Either a b)
+        eitherParseComb l r = (Left <$> l) <|> (Right <$> r)
+

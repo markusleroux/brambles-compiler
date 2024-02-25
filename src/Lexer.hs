@@ -25,6 +25,7 @@ lexer = Tok.makeTokenParser languageDef
             , Tok.caseSensitive = True
             }
 
+spaceConsumer = Tok.whiteSpace lexer
 
 integerType = Tok.reserved lexer "int"
 floatType = Tok.reserved lexer "float"

@@ -9,6 +9,7 @@ import AST
 import Text.Parsec (parse)
 import Text.Parsec.String (Parser)
 
+
 testParser:: Parser a -> String -> a
 testParser parser code = case (parse parser "" code) of
     Right e -> e
@@ -35,6 +36,7 @@ exprTests = testGroup "Basic expression parsing"
     ]
     where
         testExprParser = testParser exprP
+
 
 fnTests :: TestTree
 fnTests = testGroup "Basic fn tests"
@@ -84,8 +86,30 @@ fnTests = testGroup "Basic fn tests"
     where
         testFnParser = testParser functionP
 
+
+programTests :: TestTree
+programTests = testGroup "Basic program tests"
+    [ testCase "Empty" $ testProgramParser "" @?= Program { globals = [] , functions = [] }
+
+    , testCase "Assignment and function" $
+        testProgramParser "int x = 3; fn test(float y) -> int { int z = 5; };" @?= Program
+            { globals = [ Assignment (Variable $ TypedVar TInt "x") (IntLit 3) ]
+            , functions = 
+                [ Function
+                    { functionName = "test"
+                    , functionArguments = [ TypedVar TFloat "y" ]
+                    , functionReturnType = TInt
+                    , functionBody = Block [ Assignment (Variable $ TypedVar TInt "z") (IntLit 5) ]
+                    }
+                ]
+            }
+    ]
+    where
+        testProgramParser = testParser programP
+
+
 main :: IO ()
 main = defaultMain $ testGroup "Parsing"
-    [ exprTests, fnTests ]
+    [ exprTests, fnTests, programTests ]
 
 

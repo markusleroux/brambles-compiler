@@ -40,3 +40,9 @@ data Function = Function
     }
     deriving (Eq, Ord, Show)
 
+data Program = Program
+    { globals :: [Expr]
+    , functions :: [Function]
+    }
+    deriving (Eq, Ord, Show)
+
