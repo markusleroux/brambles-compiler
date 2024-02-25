@@ -30,6 +30,7 @@ exprP = Expr.buildExpressionParser table factorP <?> "expression"
               <|> try (IntLit   <$> integer) 
               <|> try (Call     <$> identifier <*> (parens $ commas exprP))
               <|> try (Variable <$> variableP)
+              <|> parens exprP
 
         table = [ [ binaryOp "*" Mult Expr.AssocLeft, binaryOp "/" Div Expr.AssocLeft ]
                 , [ binaryOp "+" Add Expr.AssocLeft,  binaryOp "-" Sub Expr.AssocLeft ]

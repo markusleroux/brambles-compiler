@@ -26,10 +26,12 @@ exprTests = testGroup "Basic expression parsing"
 
     -- Binary operators
     , testCase "Addition" $ testExprParser "3 + 2" @?= BinOp Add (IntLit 3) (IntLit 2)
+    , testCase "Addition (braces)" $ testExprParser "3 + (2 - 5)" @?= BinOp Add (IntLit 3) (BinOp Sub (IntLit 2) (IntLit 5))
     , testCase "Subtraction" $ testExprParser "3 - 2" @?= BinOp Sub (IntLit 3) (IntLit 2)
     , testCase "Multiplication" $ testExprParser "3 * 2" @?= BinOp Mult (IntLit 3) (IntLit 2)
     , testCase "Division" $ testExprParser "3 / 2" @?= BinOp Div (IntLit 3) (IntLit 2)
     , testCase "Division (no spaces)" $ testExprParser "3/2" @?= BinOp Div (IntLit 3) (IntLit 2)
+
     , testCase "Assignment" $ testExprParser "x = 2" @?= Assignment (Variable $ UntypedVar "x") (IntLit 2)
     , testCase "TypedAssignment Int" $ testExprParser "int x = 2" @?= Assignment (Variable $ TypedVar TInt "x") (IntLit 2)
     , testCase "TypedAssignment Float" $ testExprParser "float x = 2" @?= Assignment (Variable $ TypedVar TFloat "x") (IntLit 2)
