@@ -46,11 +46,6 @@ bindTests :: TestTree
 bindTests = testGroup "Variable type (binding)"
     [ testCase "Int" $ testBindParser "int x" @?= Bind { bindType = TyInt, bindName = Var "x" }
     , testCase "Float" $ testBindParser "float y" @?= Bind { bindType = TyFloat, bindName = Var "y" }
-    , testCase "Float bind assignment" $ 
-        testBindParser "float y = 3" @?= Bind { bindType = TyFloat, bindName = Assignment (Var "y") (IntLit 3) }
-    , testCase "Float expr bind assignment" $ 
-        testBindParser "float y = 3 * 4" @?= Bind { bindType = TyFloat
-                                                  , bindName = Assignment (Var "y") (BinOp Mult (IntLit 3) (IntLit 4)) }
     ]
     where
         testBindParser = testParser bindP
@@ -87,26 +82,30 @@ fnTests = testGroup "Basic fn tests"
             }
 
     , testCase "Small body" $ 
-        testFnParser "fn function(int a, float b) -> float { int a = 3; }" @?= Function
+        testFnParser "fn function(int a, float b) -> float { int x = 3; }" @?= Function
             { functionName = "function"
             , functionReturnType = TyFloat
             , functionArguments = [ Bind { bindType = TyInt,   bindName = Var "a" }
                                   , Bind { bindType = TyFloat, bindName = Var "b" }
                                   ]
-            , functionLocals = []
-            , functionBody = [ Assignment (Var "a") (IntLit 3) ]
+            , functionLocals = [ Bind { bindType = TyInt,   bindName = Var "x" } ]
+            , functionBody = [ Assignment (Var "x") (IntLit 3) ]
             }
 
     , testCase "Medium body" $ 
-        testFnParser "fn function(int a, float b) -> float { int a = 3; float y = 3 * 10.0; }" @?= Function
+        testFnParser "fn function(int a, float b) -> float { int x; float y = 3 * 10.0; a = 4; }" @?= Function
             { functionName = "function"
             , functionReturnType = TyFloat
             , functionArguments = [ Bind { bindType = TyInt,   bindName = Var "a" }
                                   , Bind { bindType = TyFloat, bindName = Var "b" }
                                   ]
-            , functionLocals = []
-            , functionBody = [ Assignment (Var "a") (IntLit 3)
-                             , Assignment (Var "y") (BinOp Mult (IntLit 3) (FloatLit 10.0)) ]
+            , functionLocals = [ Bind { bindType = TyInt,   bindName = Var "x" }
+                               , Bind { bindType = TyFloat, bindName = Var "y" }
+                               ]
+            , functionBody = [ Var "x"
+                             , Assignment (Var "y") (BinOp Mult (IntLit 3) (FloatLit 10.0))
+                             , Assignment (Var "a") (IntLit 4)
+                             ]
             }
     ]
     where

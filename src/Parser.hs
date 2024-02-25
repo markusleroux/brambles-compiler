@@ -5,6 +5,7 @@ import Text.Parsec.String (Parser)
 import qualified Text.Parsec.Token as Tok
 import qualified Text.Parsec.Expr as Expr
 
+import Data.Either
 
 import Lexer
 import AST
@@ -41,23 +42,32 @@ typeP = litIntP <|> litFloatP
 bindP :: Parser Bind
 bindP = do
     _type <- typeP
-    name <- exprP
+    name <- lookAhead variableP
     return $ Bind { bindType = _type , bindName = name }
 
 functionP :: Parser Function
 functionP = do
     Tok.reserved lexer "fn"
     name <- Tok.identifier lexer
-    args <- Tok.parens lexer $ Tok.commaSep lexer bindP
+    args <- Tok.parens lexer $ Tok.commaSep lexer (bindP <* variableP)  -- remove lookahead
     Tok.reservedOp lexer "->"
     returnType <- typeP
-    body <- Tok.braces lexer $ exprP `endBy` (Tok.reservedOp lexer ";")
+
+    {- -- fails if bindP fails
+    locals <- lookAhead $ Tok.braces lexer $ many $ bindP <* manyTill anyToken ( Tok.reservedOp lexer ";" )
+    body <- Tok.braces lexer $ (optional typeP *> exprP) `endBy` (Tok.reservedOp lexer ";") -}
+
+    -- will allow illegal int func(a);
+    rawBody <- Tok.braces lexer $ parseEither bindP (optional typeP *> exprP) 
+        `endBy` (optional $ Tok.reservedOp lexer ";")
         
     return $ Function 
         { functionName = name
         , functionReturnType = returnType
         , functionArguments = args
-        , functionLocals = []
-        , functionBody = body
+        , functionLocals = lefts rawBody
+        , functionBody = rights rawBody
         }
 
+parseEither :: Parser a -> Parser b -> Parser (Either a b)
+parseEither a b = (Left <$> a) <|> (Right <$> b)
