@@ -1,11 +1,11 @@
 module Parser where
 
-import Text.Parsec
+import Text.Parsec (endBy, eof, (<?>), (<|>), try)
 import Text.Parsec.String (Parser)
 import qualified Text.Parsec.Token as Tok
 import qualified Text.Parsec.Expr as Expr
 
-import Data.Either
+import Data.Either (lefts, rights)
 
 import Lexer
 import AST
@@ -28,7 +28,7 @@ exprP = Expr.buildExpressionParser table factorP <?> "expression"
     where
         factorP = try (FloatLit <$> float)
               <|> try (IntLit   <$> integer) 
-              <|> try (Call     <$> identifier <*> (parens $ commas exprP))
+              <|> try (Call     <$> identifier <*> parens (commas exprP))
               <|> try (Variable <$> variableP)
               <|> parens exprP
 
@@ -47,7 +47,7 @@ blockP = braces $ Block <$> exprP `endBy` semicolon
 functionP :: Parser Function  -- fn name(t0 arg0, ...) -> returnType { ... }
 functionP = Function
         <$> (fn *> identifier)
-        <*> (parens $ commas variableP) 
+        <*> parens (commas variableP) 
         <*> (returnArrow *> typeP)
         <*> blockP
         <?> "function"

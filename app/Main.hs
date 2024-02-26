@@ -1,9 +1,9 @@
 module Main where
 
-import Parser
+import Parser (programP)
 
 import Text.Parsec (parse)
-import System.Console.Haskeline
+import System.Console.Haskeline (defaultSettings, getInputLine, runInputT, InputT)
 import Control.Monad.IO.Class (liftIO)
 
 process :: String -> IO ()
@@ -21,4 +21,4 @@ main = runInputT defaultSettings loop
             minput <- getInputLine "womp> "
             case minput of
                 Nothing     -> return ()
-                Just input  -> (liftIO $ process input) >> loop
+                Just input  -> liftIO (process input) >> loop

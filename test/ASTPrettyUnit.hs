@@ -19,7 +19,7 @@ printingTests = testGroup "Printing"
     ]
 
 testPrinter :: Pretty a => Parser a -> String -> Assertion
-testPrinter parser code = case (parse parser "" code) of
+testPrinter parser code = case parse parser "" code of
         Left err -> error $ show err
         Right exp -> makePrettyString exp @?= code
     where
