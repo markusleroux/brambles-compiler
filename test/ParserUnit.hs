@@ -1,4 +1,4 @@
-module Main where
+module ParserUnit where
 
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -10,10 +10,38 @@ import Text.Parsec (parse)
 import Text.Parsec.String (Parser)
 
 
+parsingTests = testGroup "Parsing"
+    [ typeTests
+    , variableTests
+    , exprTests
+    , blockTests
+    , fnTests
+    , programTests
+    ]
+
 testParser:: Parser a -> String -> a
 testParser parser code = case (parse parser "" code) of
     Right e -> e
     Left err -> error $ show err
+
+
+typeTests :: TestTree
+typeTests = testGroup "Basic type parsing"
+    [ testCase "Int type" $ testTypeParser "int" @?= TInt
+    , testCase "Float type" $ testTypeParser "float" @?= TFloat
+    ]
+    where
+        testTypeParser = testParser typeP
+
+
+variableTests :: TestTree
+variableTests = testGroup "Basic variable parsing"
+    [ testCase "Int variable" $ testVarParser "int x" @?= TypedVar TInt "x"
+    , testCase "Float variable" $ testVarParser "float x" @?= TypedVar TFloat "x"
+    , testCase "Untyped variable" $ testVarParser "x" @?= UntypedVar "x"
+    ]
+    where
+        testVarParser = testParser variableP
 
 
 exprTests :: TestTree
@@ -38,6 +66,14 @@ exprTests = testGroup "Basic expression parsing"
     ]
     where
         testExprParser = testParser exprP
+
+blockTests :: TestTree
+blockTests = testGroup "Basic block parsing"
+    [ testCase "Basic block" $ testBlockParser "{ }" @?= Block []
+    , testCase "Assignment in block" $ testBlockParser "{ x = 3; }" @?= Block [ Assignment (Variable $ UntypedVar "x") (IntLit 3) ]
+    ]
+    where
+        testBlockParser = testParser blockP
 
 
 fnTests :: TestTree
@@ -108,10 +144,4 @@ programTests = testGroup "Basic program tests"
     ]
     where
         testProgramParser = testParser programP
-
-
-main :: IO ()
-main = defaultMain $ testGroup "Parsing"
-    [ exprTests, fnTests, programTests ]
-
 

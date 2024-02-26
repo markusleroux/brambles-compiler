@@ -35,7 +35,8 @@ library compiler-lib
     -- other-extensions:
     build-depends:    
         base ^>=4.15.1.0,
-        parsec ^>=3.1.17.0
+        parsec ^>=3.1.17.0,
+        prettyprinter ^>=1.7.1
 
     hs-source-dirs:   src
     default-language: Haskell2010
@@ -59,7 +60,8 @@ executable compiler
 
 test-suite unit-test
     type: exitcode-stdio-1.0
-    main-is: LexerTests.hs
+    main-is: Suite.hs 
+    other-modules: ASTPrettyUnit, ParserUnit
     hs-source-dirs: test
 
     build-depends:
@@ -67,6 +69,7 @@ test-suite unit-test
         tasty,
         tasty-hunit,
         parsec ^>=3.1.17.0,
+        prettyprinter ^>=1.7.1,
         compiler-lib
 
     default-language: Haskell2010
