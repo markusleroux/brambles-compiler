@@ -1,6 +1,6 @@
 module Lexer where
 
-import Text.Parsec
+import Text.Parsec (alphaNum, oneOf, char, letter, (<|>))
 import qualified Text.Parsec.Token as Tok
 
 lexer :: Tok.TokenParser m

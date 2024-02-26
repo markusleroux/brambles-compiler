@@ -20,7 +20,7 @@ parsingTests = testGroup "Parsing"
     ]
 
 testParser:: Parser a -> String -> a
-testParser parser code = case (parse parser "" code) of
+testParser parser code = case parse parser "" code of
     Right e -> e
     Left err -> error $ show err
 
@@ -50,7 +50,7 @@ exprTests = testGroup "Basic expression parsing"
     , testCase "Float literal" $ testExprParser "3.0" @?= FloatLit 3.0
 
     , testCase "Call" $ testExprParser "function(3, 4)" @?= Call "function" [IntLit 3, IntLit 4]
-    , testCase "Variable" $ testExprParser "abc" @?= (Variable $ UntypedVar "abc")
+    , testCase "Variable" $ testExprParser "abc" @?= Variable (UntypedVar "abc")
 
     -- Binary operators
     , testCase "Addition" $ testExprParser "3 + 2" @?= BinOp Add (IntLit 3) (IntLit 2)

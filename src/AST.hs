@@ -56,7 +56,7 @@ instance Pretty Expr where
     pretty (Assignment l r)     = pretty l <+> equals <+> pretty r
 
 
-data Block = Block [Expr]
+newtype Block = Block [Expr]
     deriving (Eq, Ord, Show)
 
 instance Pretty Block where
