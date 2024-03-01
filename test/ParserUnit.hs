@@ -46,31 +46,43 @@ variableTests = testGroup "Basic variable parsing"
 
 exprTests :: TestTree
 exprTests = testGroup "Basic expression parsing"
-    [ testCase "Integer literal" $ testExprParser "3" @?= IntLit 3
-    , testCase "Float literal" $ testExprParser "3.0" @?= FloatLit 3.0
+    [ testCase "Integer literal" $ testExprParser "3"   @?= IntLit 3
+    , testCase "Float literal"   $ testExprParser "3.0" @?= FloatLit 3.0
 
-    , testCase "Call" $ testExprParser "function(3, 4)" @?= Call "function" [IntLit 3, IntLit 4]
+    , testCase "Call" 
+        $ testExprParser "function(3, 4)" @?= Call "function" [IntLit 3, IntLit 4]
+    , testCase "Call" 
+        $ testExprParser "aw(ch(-1.0, 0.0) - 2)" @?= Call "aw" [BinOp Sub (Call "ch" [UnOp Neg $ FloatLit 1.0, FloatLit 0.0]) (IntLit 2)]
+
     , testCase "Variable" $ testExprParser "abc" @?= Variable (UntypedVar "abc")
 
     -- Binary operators
-    , testCase "Addition" $ testExprParser "3 + 2" @?= BinOp Add (IntLit 3) (IntLit 2)
-    , testCase "Addition (braces)" $ testExprParser "3 + (2 - 5)" @?= BinOp Add (IntLit 3) (BinOp Sub (IntLit 2) (IntLit 5))
-    , testCase "Subtraction" $ testExprParser "3 - 2" @?= BinOp Sub (IntLit 3) (IntLit 2)
-    , testCase "Multiplication" $ testExprParser "3 * 2" @?= BinOp Mult (IntLit 3) (IntLit 2)
-    , testCase "Division" $ testExprParser "3 / 2" @?= BinOp Div (IntLit 3) (IntLit 2)
-    , testCase "Division (no spaces)" $ testExprParser "3/2" @?= BinOp Div (IntLit 3) (IntLit 2)
+    , testCase "Addition"             $ testExprParser "3 + 2"       @?= BinOp Add  (IntLit 3) (IntLit 2)
+    , testCase "Addition (braces)"    $ testExprParser "3 + (2 - 5)" @?= BinOp Add  (IntLit 3) (BinOp Sub (IntLit 2) (IntLit 5))
+    , testCase "Subtraction"          $ testExprParser "3 - 2"       @?= BinOp Sub  (IntLit 3) (IntLit 2)
+    , testCase "Multiplication"       $ testExprParser "3 * 2"       @?= BinOp Mult (IntLit 3) (IntLit 2)
+    , testCase "Division"             $ testExprParser "3 / 2"       @?= BinOp Div  (IntLit 3) (IntLit 2)
+    , testCase "Division (no spaces)" $ testExprParser "3/2"         @?= BinOp Div  (IntLit 3) (IntLit 2)
 
-    , testCase "Assignment" $ testExprParser "x = 2" @?= Assignment (Variable $ UntypedVar "x") (IntLit 2)
-    , testCase "TypedAssignment Int" $ testExprParser "int x = 2" @?= Assignment (Variable $ TypedVar TInt "x") (IntLit 2)
-    , testCase "TypedAssignment Float" $ testExprParser "float x = 2" @?= Assignment (Variable $ TypedVar TFloat "x") (IntLit 2)
+    , testCase "Assignment"                       $ testExprParser "x = 2"        @?= Assignment (UntypedVar "x") (IntLit 2)
+    , testCase "TypedAssignment Int"              $ testExprParser "int x = 2"    @?= Assignment (TypedVar TInt "x") (IntLit 2)
+    , testCase "TypedAssignment Float"            $ testExprParser "float x = 2"  @?= Assignment (TypedVar TFloat "x") (IntLit 2)
+
+    , testCase "TypedAssignment Int (negative)"   
+        $ testExprParser "int x = -2"   @?= Assignment (TypedVar TInt "x") (UnOp Neg $ IntLit 2)
+    , testCase "TypedAssignment Int (fnegative)"  
+        $ testExprParser "int x = -2.0" @?= Assignment (TypedVar TInt "x") (UnOp Neg $ FloatLit 2.0)
+
+    , testCase "Precedence" 
+        $ testExprParser "x = y + 5.0" @?= Assignment (UntypedVar "x") (BinOp Add (Variable $ UntypedVar "y") (FloatLit 5.0))
     ]
     where
         testExprParser = testParser exprP
 
 blockTests :: TestTree
 blockTests = testGroup "Basic block parsing"
-    [ testCase "Basic block" $ testBlockParser "{ }" @?= Block []
-    , testCase "Assignment in block" $ testBlockParser "{ x = 3; }" @?= Block [ Assignment (Variable $ UntypedVar "x") (IntLit 3) ]
+    [ testCase "Basic block"         $ testBlockParser "{ }"        @?= Block []
+    , testCase "Assignment in block" $ testBlockParser "{ x = 3; }" @?= Block [ Assignment (UntypedVar "x") (IntLit 3) ]
     ]
     where
         testBlockParser = testParser blockP
@@ -106,8 +118,8 @@ fnTests = testGroup "Basic fn tests"
         testFnParser "fn function(int a, float b) -> float { int x = 3; }" @?= Function
             { functionName = "function"
             , functionReturnType = TFloat
-            , functionArguments = [ TypedVar TInt "a" , TypedVar TFloat "b"                                   ]
-            , functionBody = Block [ Assignment (Variable $ TypedVar TInt "x") (IntLit 3) ]
+            , functionArguments = [ TypedVar TInt "a" , TypedVar TFloat "b"]
+            , functionBody = Block [ Assignment (TypedVar TInt "x") (IntLit 3) ]
             }
 
     , testCase "Medium body" $ 
@@ -116,8 +128,8 @@ fnTests = testGroup "Basic fn tests"
             , functionReturnType = TFloat
             , functionArguments = [ TypedVar TInt "a" , TypedVar TFloat "b" ]
             , functionBody = Block [ Variable $ TypedVar TInt "x"
-                                   , Assignment (Variable $ TypedVar TFloat "y") (BinOp Mult (IntLit 3) (FloatLit 10.0))
-                                   , Assignment (Variable $ UntypedVar "a") (IntLit 4)
+                                   , Assignment (TypedVar TFloat "y") (BinOp Mult (IntLit 3) (FloatLit 10.0))
+                                   , Assignment (UntypedVar "a") (IntLit 4)
                                    ]
             }
     ]
@@ -131,13 +143,13 @@ programTests = testGroup "Basic program tests"
 
     , testCase "Assignment and function" $
         testProgramParser "int x = 3; fn test(float y) -> int { int z = 5; };" @?= Program
-            { globals = [ Assignment (Variable $ TypedVar TInt "x") (IntLit 3) ]
+            { globals = [ Assignment (TypedVar TInt "x") (IntLit 3) ]
             , functions = 
                 [ Function
                     { functionName = "test"
                     , functionArguments = [ TypedVar TFloat "y" ]
                     , functionReturnType = TInt
-                    , functionBody = Block [ Assignment (Variable $ TypedVar TInt "z") (IntLit 5) ]
+                    , functionBody = Block [ Assignment (TypedVar TInt "z") (IntLit 5) ]
                     }
                 ]
             }

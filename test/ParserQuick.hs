@@ -14,43 +14,57 @@ import Prettyprinter.Render.String
 
 import Control.Monad (liftM2, liftM3)
 
-instance Arbitrary AST.Op where
+instance Arbitrary AST.UnOp where
+    arbitrary = elements [ Neg, Pos ]
+
+instance Arbitrary AST.BinOp where
     arbitrary = elements [ Add, Sub, Mult, Div ]
 
 instance Arbitrary AST.Type where
     arbitrary = elements [ TInt, TFloat ]
+
+arbitraryIdentifier = listOf1 $ elements ['a'..'z']  -- TODO: more identifiers, don't generate reserved
 
 instance Arbitrary AST.Variable where
     arbitrary = QC.oneof
         [ UntypedVar <$> arbitraryIdentifier
         , liftM2 TypedVar arbitrary arbitraryIdentifier
         ]
-        where
-            arbitraryIdentifier = listOf1 $ elements ['a'..'z']  -- TODO: more identifiers
 
 instance Arbitrary AST.Expr where
-    -- TODO: restrict size of tree
-    arbitrary = QC.oneof
-        [ IntLit <$> arbitrary
-        , FloatLit <$> arbitrary
-        , Variable <$> arbitrary
-        , liftM3 BinOp arbitrary arbitrary arbitrary
-        , liftM2 Call arbitrary $ QC.listOf arbitrary
-        , liftM2 Assignment arbitrary arbitrary
-        ]
+    arbitrary = sized ast
+        where 
+            ast 0 = QC.oneof
+                [ IntLit . abs   <$> arbitrary
+                , FloatLit . abs <$> arbitrary
+                , Variable       <$> arbitrary
+                ]
+            ast n = QC.oneof
+                [ liftM2 UnOp       arbitrary $ ast (n - 1)
+                , liftM3 BinOp      arbitrary halfAst halfAst
+                , liftM2 Call       arbitraryIdentifier listAst
+                , liftM2 Assignment arbitrary $ ast (n - 1)
+                ]
+                where
+                    halfAst = ast ( n `div` 2 :: Int )
+                    listAst = do
+                        k <- QC.choose (0, n)
+                        QC.vectorOf k $ ast ( n `div` k :: Int )
+
 
 prop_prettyParserInverse :: (Show a, Pretty a, Eq a, Arbitrary a) => Parser a -> a -> Property
 prop_prettyParserInverse parser ast =
     let 
         prettyAST = renderString . layoutPretty defaultLayoutOptions . pretty $ ast
     in
-        case parse parser "" prettyAST of
-            Left err -> (QC.counterexample $ "Failed to compile:\n" ++ prettyAST ++ "\n" ++ show err) $ property False
+         within 1000000 $ case parse parser "" prettyAST of
+            Left err -> QC.counterexample ( "Failed to compile:\n" ++ prettyAST ++ "\n" ++ show err) $ property False
             Right a -> ast === a
 
 
 parsingQuickTests = testGroup "Pretty followed by parse is identify"
-    [ QC.testProperty "typeP" $ prop_prettyParserInverse typeP
+    [ QC.testProperty "typeP"     $ prop_prettyParserInverse typeP
     , QC.testProperty "variableP" $ prop_prettyParserInverse variableP
-    , QC.testProperty "exprP" $ prop_prettyParserInverse exprP
+    , QC.testProperty "exprP"     $ prop_prettyParserInverse exprP
     ]
+
