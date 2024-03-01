@@ -2,14 +2,24 @@ module AST where
 
 import Prettyprinter
 
-data Op
+data UnOp
+    = Neg
+    | Pos
+    deriving (Eq, Ord, Show)
+
+instance Pretty UnOp where
+    pretty Neg = pretty "-"
+    pretty Pos = pretty "+"
+
+
+data BinOp
     = Add
     | Sub
     | Mult
     | Div
     deriving (Eq, Ord, Show)
 
-instance Pretty Op where
+instance Pretty BinOp where
     pretty Add  = pretty "+"
     pretty Sub  = pretty "-"
     pretty Mult = pretty "*"
@@ -42,19 +52,26 @@ data Expr
     = IntLit Integer
     | FloatLit Double
     | Variable Variable
-    | BinOp Op Expr Expr
+    | UnOp UnOp Expr
+    | BinOp BinOp Expr Expr
     | Call Name [Expr]
-    | Assignment Expr Expr
+    | Assignment Variable Expr
     deriving (Eq, Ord, Show)
 
 instance Pretty Expr where
     pretty (IntLit val)         = pretty val
     pretty (FloatLit val)       = pretty val
     pretty (Variable var)       = pretty var
-    pretty (BinOp op expl expr) = pretty expl <+> pretty op <+> pretty expr
+    pretty (UnOp op exp)        = pretty op <> prettyGrouped exp
+    pretty (BinOp op expl expr) = prettyGrouped expl <+> pretty op <+> prettyGrouped expr
     pretty (Call name exps)     = pretty name <> align (tupled $ pretty <$> exps)
     pretty (Assignment l r)     = pretty l <+> equals <+> pretty r
-
+        
+prettyGrouped lit@(IntLit _)   = pretty lit
+prettyGrouped lit@(FloatLit _) = pretty lit
+prettyGrouped var@(Variable _) = pretty var
+prettyGrouped call@(Call _ _)  = pretty call
+prettyGrouped p = pretty "(" <> pretty p <> pretty ")"
 
 newtype Block = Block [Expr]
     deriving (Eq, Ord, Show)
