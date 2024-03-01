@@ -27,18 +27,20 @@ testPrinter parser code = case parse parser "" code of
 
 exprTests :: TestTree
 exprTests = testGroup "Basic expression printing"
-    [ testCase "Variable" $ testExprPrinter "int x"
-    , testCase "Binary operation" $ testExprPrinter "3 + 2"
-    , testCase "Call" $ testExprPrinter "foo(3, 2)"
-    , testCase "Assign" $ testExprPrinter "x = 2"
+    [ testCase "Variable"                     $ testExprPrinter "int x"
+    , testCase "Binary operation"             $ testExprPrinter "3 + 2"
+    , testCase "Call"                         $ testExprPrinter "foo(3, 2)"
+    , testCase "Assign"                       $ testExprPrinter "x = 2"
+    , testCase "Assign negative float to int" $ testExprPrinter "int x = -2.0"
     ]
     where
         testExprPrinter = testPrinter exprP
 
 fnTests :: TestTree
 fnTests = testGroup "Basic function printing"
-    [ testCase "Simple function" $ testFnPrinter "fn name() -> int {}"
+    [ testCase "Simple function"       $ testFnPrinter "fn name() -> int {}"
     , testCase "One argument function" $ testFnPrinter "fn name(int x) -> int {x = 4;}"  -- TODO: spaces
     ]
     where
         testFnPrinter = testPrinter functionP
+

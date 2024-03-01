@@ -31,7 +31,8 @@ integerType = Tok.reserved lexer "int"
 floatType = Tok.reserved lexer "float"
 identifier = Tok.identifier lexer
 
-integer = Tok.integer lexer
+-- literals are always parsed as positive, c.f. UnOp
+natural = Tok.integer lexer
 float = Tok.float lexer
 
 parens = Tok.parens lexer

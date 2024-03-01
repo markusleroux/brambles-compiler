@@ -22,26 +22,29 @@ variableP = try (TypedVar   <$> typeP <*> identifier)
         <|> try (UntypedVar <$> identifier)
         <?> "variable"
 
-
 exprP :: Parser Expr
 exprP = Expr.buildExpressionParser table factorP <?> "expression"
     where
-        factorP = try (FloatLit <$> float)
-              <|> try (IntLit   <$> integer) 
-              <|> try (Call     <$> identifier <*> parens (commas exprP))
-              <|> try (Variable <$> variableP)
+        factorP = try (FloatLit   <$> float)
+              <|> try (IntLit     <$> natural) 
+              <|> try (Call       <$> identifier <*> parens (commas exprP))
+              <|> try (Assignment <$> (variableP <* assignment) <*> exprP)
+              <|> try (Variable   <$> variableP)
               <|> parens exprP
 
-        table = [ [ binaryOp "*" Mult Expr.AssocLeft, binaryOp "/" Div Expr.AssocLeft ]
+        table = [ [ unaryOp "-" Neg, unaryOp "+" Pos ]
+                , [ binaryOp "*" Mult Expr.AssocLeft, binaryOp "/" Div Expr.AssocLeft ]
                 , [ binaryOp "+" Add Expr.AssocLeft,  binaryOp "-" Sub Expr.AssocLeft ]
-                , [ Expr.Infix (Assignment <$ assignment) Expr.AssocLeft ]
                 ]
 
+        unaryOp name op  = Expr.Prefix $ UnOp op <$ Tok.reservedOp lexer name
         binaryOp name op = Expr.Infix $ BinOp op <$ Tok.reservedOp lexer name
 
 
 blockP :: Parser Block
-blockP = braces $ Block <$> exprP `endBy` semicolon
+blockP = braces $ Block <$> statementP
+    where
+        statementP = exprP `endBy` semicolon
 
 
 functionP :: Parser Function  -- fn name(t0 arg0, ...) -> returnType { ... }
