@@ -12,7 +12,8 @@ import Text.Parsec.String (Parser)
 import Prettyprinter
 import Prettyprinter.Render.String
 
-import Control.Monad (liftM2, liftM3)
+import Control.Monad (liftM2, liftM3, liftM4)
+
 
 instance Arbitrary AST.UnOp where
     arbitrary = elements [ Neg, Pos ]
@@ -51,6 +52,15 @@ instance Arbitrary AST.Expr where
                         k <- QC.choose (0, n)
                         QC.vectorOf k $ ast ( n `div` k :: Int )
 
+instance Arbitrary AST.Block where
+    arbitrary = Block <$> arbitrary
+
+instance Arbitrary AST.Function where
+    arbitrary = liftM4 Function arbitraryIdentifier arbitrary arbitrary arbitrary
+
+instance Arbitrary AST.Program where
+    arbitrary = liftM2 Program arbitrary arbitrary
+
 
 prop_prettyParserInverse :: (Show a, Pretty a, Eq a, Arbitrary a) => Parser a -> a -> Property
 prop_prettyParserInverse parser ast =
@@ -66,5 +76,8 @@ parsingQuickTests = testGroup "Pretty followed by parse is identify"
     [ QC.testProperty "typeP"     $ prop_prettyParserInverse typeP
     , QC.testProperty "variableP" $ prop_prettyParserInverse variableP
     , QC.testProperty "exprP"     $ prop_prettyParserInverse exprP
+    , QC.testProperty "blockP"    $ prop_prettyParserInverse blockP
+    , QC.testProperty "functionP" $ prop_prettyParserInverse functionP
+    , QC.testProperty "programP"  $ prop_prettyParserInverse programP
     ]
 

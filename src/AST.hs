@@ -71,13 +71,16 @@ prettyGrouped lit@(IntLit _)   = pretty lit
 prettyGrouped lit@(FloatLit _) = pretty lit
 prettyGrouped var@(Variable _) = pretty var
 prettyGrouped call@(Call _ _)  = pretty call
-prettyGrouped p = pretty "(" <> pretty p <> pretty ")"
+prettyGrouped p                = pretty "(" <> pretty p <> pretty ")"
 
 newtype Block = Block [Expr]
     deriving (Eq, Ord, Show)
 
 instance Pretty Block where
-    pretty (Block exprs) = braces $ vsep $ (<> semi) . pretty <$> exprs
+    pretty (Block exprs) = braces $ vsep $ prettyStatement <$> exprs
+
+prettyStatement :: Pretty a => a -> Doc ann
+prettyStatement = (<> semi) . pretty
 
 
 data Function = Function
@@ -102,4 +105,7 @@ data Program = Program
     , functions :: [Function]
     }
     deriving (Eq, Ord, Show)
+
+instance Pretty Program where
+    pretty (Program exprs functions) = vsep $ (prettyStatement <$> exprs) <> (prettyStatement <$> functions)
 
