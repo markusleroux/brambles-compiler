@@ -1,6 +1,7 @@
 module AST where
 
 import Prettyprinter
+import Data.Bool
 
 data UnOp
     = Neg
@@ -77,7 +78,9 @@ newtype Block = Block [Expr]
     deriving (Eq, Ord, Show)
 
 instance Pretty Block where
-    pretty (Block exprs) = braces $ vsep $ prettyStatement <$> exprs
+    pretty (Block exprs) = braces $ multilineMb (null exprs) $ vsep $ prettyStatement <$> exprs
+        where 
+            multilineMb = bool (enclose line line) id
 
 prettyStatement :: Pretty a => a -> Doc ann
 prettyStatement = (<> semi) . pretty

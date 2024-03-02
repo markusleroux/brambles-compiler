@@ -39,7 +39,7 @@ exprTests = testGroup "Basic expression printing"
 fnTests :: TestTree
 fnTests = testGroup "Basic function printing"
     [ testCase "Simple function"       $ testFnPrinter "fn name() -> int {}"
-    , testCase "One argument function" $ testFnPrinter "fn name(int x) -> int {x = 4;}"  -- TODO: spaces
+    , testCase "One argument function" $ testFnPrinter "fn name(int x) -> int {\nx = 4;\n}"  -- TODO: one line with spaces
     ]
     where
         testFnPrinter = testPrinter functionP
