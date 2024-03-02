@@ -26,7 +26,7 @@ version:            0.1.0.0
 -- extra-source-files: CHANGELOG.md
 
 library compiler-lib
-    exposed-modules: Parser, AST, Lexer
+    exposed-modules: Parser, AST, Lexer, Pretty
 
     -- Modules included in this library but not exported.
     -- other-modules:  
