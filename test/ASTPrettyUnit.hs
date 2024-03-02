@@ -5,6 +5,7 @@ import Test.Tasty.HUnit
 
 import Parser
 import AST
+import Pretty
 
 import Text.Parsec (parse)
 import Text.Parsec.String (Parser)

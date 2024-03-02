@@ -3,6 +3,7 @@ module ParserQuick where
 import AST
 import Parser
 import Lexer (identifier)
+import Pretty
 
 import Test.Tasty
 import Test.Tasty.QuickCheck as QC
