@@ -3,6 +3,7 @@ module Main where
 import ASTPrettyUnit
 import ParserUnit
 import ParserQuick
+import SymbolizerUnit
 
 import Test.Tasty
 
@@ -15,4 +16,5 @@ tests = testGroup "Tests"
     [ parsingTests
     , parsingQuickTests
     , printingTests
+    , symbolizerTests
     ]
