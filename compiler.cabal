@@ -63,7 +63,7 @@ executable compiler
 test-suite unit-test
     type: exitcode-stdio-1.0
     main-is: Suite.hs 
-    other-modules: ASTPrettyUnit, ParserUnit, ParserQuick
+    other-modules: ASTPrettyUnit, ParserUnit, ParserQuick, SymbolizerUnit
     hs-source-dirs: test
 
     build-depends:
