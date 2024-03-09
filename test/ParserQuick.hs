@@ -43,15 +43,19 @@ instance Arbitrary (AST.Expr Name) where
             ast n = QC.oneof
                 [ UnOp       <$> arbitrary           <*> ast (n - 1)
                 , BinOp      <$> arbitrary           <*> halfAst <*> halfAst
-                , Call       <$> arbitraryIdentifier <*> listAst
+                , Call       <$> arbitraryIdentifier <*> listOfScaled arbitrary
                 , Assign     <$> arbitraryIdentifier <*> ast (n - 1)
+                , EBlock     <$> arbitrary
                 ]
                 where
                     halfAst = ast ( n `div` 2 :: Int )
-                    listAst = do
-                        k <- QC.choose (0, n)
-                        QC.vectorOf k $ ast ( n `div` k :: Int )
 
+listOfScaled :: Arbitrary a => Gen a -> QC.Gen [a]
+listOfScaled s = do
+    n <- getSize
+    k <- QC.choose (0, n)
+    QC.vectorOf k $ resize ( n `div` k :: Int ) s
+    
 instance Arbitrary (AST.Stmt Name) where
     arbitrary = QC.oneof
         [ Expr <$> arbitrary
@@ -59,7 +63,7 @@ instance Arbitrary (AST.Stmt Name) where
         ]
 
 instance Arbitrary (AST.Block Name) where
-    arbitrary = Block <$> arbitrary
+    arbitrary = Block <$> listOfScaled arbitrary
 
 instance Arbitrary (AST.Func Name) where
     arbitrary = arbitrarySizedNatural >>= \n -> 

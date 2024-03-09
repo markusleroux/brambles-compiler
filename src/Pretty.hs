@@ -33,6 +33,7 @@ instance Pretty n => Pretty (Expr n) where
     pretty (BinOp op expl expr) = prettyGrouped expl <+> pretty op <+> prettyGrouped expr
     pretty (Call name exps)     = pretty name <> align (tupled $ pretty <$> exps)
     pretty (Assign name exp)    = pretty name <+> equals <+> pretty exp
+    pretty (EBlock block)       = pretty block
         
 
 prettyGrouped lit@(IntLit _)   = pretty lit
