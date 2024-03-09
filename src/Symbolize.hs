@@ -50,15 +50,12 @@ class Monad m => ScopedMonad m where
 class (ThrowsSymbolizeException m, ScopedMonad m) => MonadSymbolize m sym where
     -- get the name associated with a given identifier
     getSymMb :: Name -> m (Maybe sym)
+    -- create new symbol
+    createSym :: Name -> m sym
 
     -- get the name associated with a given identifier (or throw)
     getSym :: Name -> m sym
-    getSym name = getSymMb name >>= \case
-        Just u -> return u
-        Nothing -> throwUndefined name
-
-    -- create new symbol
-    createSym :: Name -> m sym
+    getSym name = getSymMb name >>= maybe (throwUndefined name) return
 
 
 
@@ -117,17 +114,13 @@ instance Monad m => ScopedMonad (UniqueSymbolizeM m) where
 instance MonadIO m => MonadSymbolize (UniqueSymbolizeM m) Unique where
     getSymMb = gets . Map.lookup
         
-    createSym name = do
-        u <- gets (Map.lookup name) >>= \case
-            Just u -> throwRedefined name
-            Nothing -> liftIO newUnique
+    createSym name = do  -- aliasing allowed
+        u <- liftIO newUnique
         modify $ Map.insert name u
         pure u
 
 runUniqueSymbolizeT :: MonadIO m => UniqueSymbolizeM m a -> m (Either SymbolizeException a)
-runUniqueSymbolizeT = 
-    let defaultState = Map.empty
-    in (`evalStateT` defaultState) . runExceptT . runUniqueSymbolizeM
+runUniqueSymbolizeT = (`evalStateT` Map.empty) . runExceptT . runUniqueSymbolizeM
 
 
 -- Incremental symbolizer using (Data.Map, Int) in StateT
@@ -148,19 +141,11 @@ instance Monad m => ScopedMonad (IncrementalSymbolizeM m) where
 
 instance Monad m => MonadSymbolize (IncrementalSymbolizeM m) Int where
     getSymMb name = gets $ Map.lookup name . fst
-       
-    createSym name = do
-        u <- gets (Map.lookup name . fst) >>= \case
-            Just u -> throwRedefined name
-            Nothing -> gets snd
-        modify $ \(m, c) -> (Map.insert name c m, c+1)
-        pure u
+    createSym name = (modify $ \(m, c) -> (Map.insert name (c + 1) m, c+1)) >> gets snd  -- aliasing allowed
 
 
 runIncrementalSymbolizeT :: Monad m => IncrementalSymbolizeM m a -> m (Either SymbolizeException a)
-runIncrementalSymbolizeT = 
-    let defaultState = (Map.empty, 0)
-    in (`evalStateT` defaultState) . runExceptT . runIncrementalSymbolizeM
+runIncrementalSymbolizeT = (`evalStateT` (Map.empty, -1)) . runExceptT . runIncrementalSymbolizeM
 
 type IncrementalSymbolize = IncrementalSymbolizeM Identity
 runIncrementalSymbolize = runIdentity . runIncrementalSymbolizeT
