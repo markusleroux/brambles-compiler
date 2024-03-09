@@ -64,9 +64,7 @@ class (ThrowsSymbolizeException m, ScopedMonad m) => MonadSymbolize m sym where
 
 
 renameProgram :: MonadSymbolize m sym => Program Name -> m (Program sym)
-renameProgram p = Program 
-              <$> mapM renameStatement (globals p) 
-              <*> mapM renameFunction  (funcs p)
+renameProgram p = Program <$> mapM renameStatement (globals p) <*> mapM renameFunction  (funcs p)
 
 renameFunction :: MonadSymbolize m sym => Func Name -> m (Func sym)
 renameFunction f = do
@@ -74,12 +72,13 @@ renameFunction f = do
 
         -- enter new scope, no references to variables defined in new scope from outside
         (args, body) <- withScope $ do
-            args <- mapM createSym $ fParams f  -- will throw if function args mask (TODO: work on masking rules)
+            args <- mapM createSym $ fParams f
             body <- renameBlock    $ fBody f
             return (args, body)
 
         return $ Func u args (fType f) body
 
+-- scoping is the responsibility of the caller, since function args need to be defined in the block's scope
 renameBlock :: MonadSymbolize m sym => Block Name -> m (Block sym)
 renameBlock = fmap Block . mapM renameStatement . unBlock
 
@@ -92,9 +91,10 @@ renameExpr (IntLit v)           = return $ IntLit v
 renameExpr (FloatLit v)         = return $ FloatLit v
 renameExpr (Var v)              = Var        <$> getSym v
 renameExpr (UnOp op exp)        = UnOp op    <$> renameExpr exp
-renameExpr (BinOp op expl expr) = BinOp op   <$> renameExpr expl <*> renameExpr expr  -- prohibit name definitions in ops?
+renameExpr (BinOp op expl expr) = BinOp op   <$> renameExpr expl <*> renameExpr expr
 renameExpr (Call name exps)     = Call       <$> getSym name     <*> mapM renameExpr exps
 renameExpr (Assign var exp)     = Assign     <$> createSym var   <*> renameExpr exp
+renameExpr (EBlock block)       = EBlock     <$> withScope (renameBlock block)
 
 
 
