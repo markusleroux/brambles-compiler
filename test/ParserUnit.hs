@@ -12,7 +12,6 @@ import Text.Parsec.String (Parser)
 
 parsingTests = testGroup "Parsing"
     [ typeTests
-    , variableTests
     , exprTests
     , blockTests
     , fnTests
@@ -29,19 +28,10 @@ typeTests :: TestTree
 typeTests = testGroup "Basic type parsing"
     [ testCase "Int type" $ testTypeParser "int" @?= TInt
     , testCase "Float type" $ testTypeParser "float" @?= TFloat
+    -- TODO: callable
     ]
     where
         testTypeParser = testParser typeP
-
-
-variableTests :: TestTree
-variableTests = testGroup "Basic variable parsing"
-    [ testCase "Int variable" $ testVarParser "int x" @?= TypedVar TInt "x"
-    , testCase "Float variable" $ testVarParser "float x" @?= TypedVar TFloat "x"
-    , testCase "Untyped variable" $ testVarParser "x" @?= UntypedVar "x"
-    ]
-    where
-        testVarParser = testParser variableP
 
 
 exprTests :: TestTree
@@ -54,7 +44,7 @@ exprTests = testGroup "Basic expression parsing"
     , testCase "Call" 
         $ testExprParser "aw(ch(-1.0, 0.0) - 2)" @?= Call "aw" [BinOp Sub (Call "ch" [UnOp Neg $ FloatLit 1.0, FloatLit 0.0]) (IntLit 2)]
 
-    , testCase "Variable" $ testExprParser "abc" @?= Variable (UntypedVar "abc")
+    , testCase "Variable" $ testExprParser "abc" @?= Var "abc"
 
     -- Binary operators
     , testCase "Addition"             $ testExprParser "3 + 2"       @?= BinOp Add  (IntLit 3) (IntLit 2)
@@ -64,17 +54,9 @@ exprTests = testGroup "Basic expression parsing"
     , testCase "Division"             $ testExprParser "3 / 2"       @?= BinOp Div  (IntLit 3) (IntLit 2)
     , testCase "Division (no spaces)" $ testExprParser "3/2"         @?= BinOp Div  (IntLit 3) (IntLit 2)
 
-    , testCase "Assignment"                       $ testExprParser "x = 2"        @?= Assignment (UntypedVar "x") (IntLit 2)
-    , testCase "TypedAssignment Int"              $ testExprParser "int x = 2"    @?= Assignment (TypedVar TInt "x") (IntLit 2)
-    , testCase "TypedAssignment Float"            $ testExprParser "float x = 2"  @?= Assignment (TypedVar TFloat "x") (IntLit 2)
-
-    , testCase "TypedAssignment Int (negative)"   
-        $ testExprParser "int x = -2"   @?= Assignment (TypedVar TInt "x") (UnOp Neg $ IntLit 2)
-    , testCase "TypedAssignment Int (fnegative)"  
-        $ testExprParser "int x = -2.0" @?= Assignment (TypedVar TInt "x") (UnOp Neg $ FloatLit 2.0)
-
+    , testCase "Assignment"                       $ testExprParser "x = 2"        @?= Assign "x" (IntLit 2)
     , testCase "Precedence" 
-        $ testExprParser "x = y + 5.0" @?= Assignment (UntypedVar "x") (BinOp Add (Variable $ UntypedVar "y") (FloatLit 5.0))
+        $ testExprParser "x = y + 5.0" @?= Assign "x" (BinOp Add (Var "y") (FloatLit 5.0))
     ]
     where
         testExprParser = testParser exprP
@@ -82,7 +64,7 @@ exprTests = testGroup "Basic expression parsing"
 blockTests :: TestTree
 blockTests = testGroup "Basic block parsing"
     [ testCase "Basic block"         $ testBlockParser "{ }"        @?= Block []
-    , testCase "Assignment in block" $ testBlockParser "{ x = 3; }" @?= Block [ Assignment (UntypedVar "x") (IntLit 3) ]
+    , testCase "Assignment in block" $ testBlockParser "{ x = 3; }" @?= Block [ Expr $ Assign "x" (IntLit 3) ]
     ]
     where
         testBlockParser = testParser blockP
@@ -91,46 +73,46 @@ blockTests = testGroup "Basic block parsing"
 fnTests :: TestTree
 fnTests = testGroup "Basic fn tests"
     [ testCase "Empty" $ 
-        testFnParser "fn function() -> int {}" @?= Function
-            { functionName = "function"
-            , functionReturnType = TInt
-            , functionArguments = []
-            , functionBody = Block []
+        testFnParser "fn function() -> int {}" @?= Func
+            { fName = "function"
+            , fType = TCallable [] TInt
+            , fParams = []
+            , fBody = Block []
             }
 
     , testCase "One argument" $ 
-        testFnParser "fn function(int a) -> int {}" @?= Function
-            { functionName = "function"
-            , functionReturnType = TInt
-            , functionArguments = [ TypedVar TInt "a" ]
-            , functionBody = Block []
+        testFnParser "fn function(a: int) -> int {}" @?= Func
+            { fName = "function"
+            , fType = TCallable [TInt] TInt
+            , fParams = [ "a" ]
+            , fBody = Block []
             }
 
     , testCase "Multiple argument" $ 
-        testFnParser "fn function(int a, float b) -> float {}" @?= Function
-            { functionName = "function"
-            , functionReturnType = TFloat
-            , functionArguments = [ TypedVar TInt "a" , TypedVar TFloat "b" ]
-            , functionBody = Block []
+        testFnParser "fn function(a: int, b: float) -> float {}" @?= Func
+            { fName = "function"
+            , fType = TCallable [TInt, TFloat] TFloat
+            , fParams = [ "a" , "b" ]
+            , fBody = Block []
             }
 
     , testCase "Small body" $ 
-        testFnParser "fn function(int a, float b) -> float { int x = 3; }" @?= Function
-            { functionName = "function"
-            , functionReturnType = TFloat
-            , functionArguments = [ TypedVar TInt "a" , TypedVar TFloat "b"]
-            , functionBody = Block [ Assignment (TypedVar TInt "x") (IntLit 3) ]
+        testFnParser "fn function(a: int, b: float) -> float { x = 3; }" @?= Func
+            { fName = "function"
+            , fType = TCallable [TInt, TFloat] TFloat
+            , fParams = [ "a", "b" ]
+            , fBody = Block [ Expr (Assign "x" (IntLit 3)) ]
             }
 
     , testCase "Medium body" $ 
-        testFnParser "fn function(int a, float b) -> float { int x; float y = 3 * 10.0; a = 4; }" @?= Function
-            { functionName = "function"
-            , functionReturnType = TFloat
-            , functionArguments = [ TypedVar TInt "a" , TypedVar TFloat "b" ]
-            , functionBody = Block [ Variable $ TypedVar TInt "x"
-                                   , Assignment (TypedVar TFloat "y") (BinOp Mult (IntLit 3) (FloatLit 10.0))
-                                   , Assignment (UntypedVar "a") (IntLit 4)
-                                   ]
+        testFnParser "fn function(a: int, b: float) -> float { x; let y: float = 3 * 10.0; a = 4; }" @?= Func
+            { fName = "function"
+            , fType = TCallable [TInt, TFloat] TFloat
+            , fParams = [ "a", "b" ]
+            , fBody = Block [ Expr (Var "x")
+                            , Decl "y" TFloat (BinOp Mult (IntLit 3) (FloatLit 10.0))
+                            , Expr $ Assign "a" (IntLit 4)
+                            ]
             }
     ]
     where
@@ -139,17 +121,17 @@ fnTests = testGroup "Basic fn tests"
 
 programTests :: TestTree
 programTests = testGroup "Basic program tests"
-    [ testCase "Empty" $ testProgramParser "" @?= Program { globals = [] , functions = [] }
+    [ testCase "Empty" $ testProgramParser "" @?= Program { globals = [] , funcs = [] }
 
     , testCase "Assignment and function" $
-        testProgramParser "int x = 3; fn test(float y) -> int { int z = 5; };" @?= Program
-            { globals = [ Assignment (TypedVar TInt "x") (IntLit 3) ]
-            , functions = 
-                [ Function
-                    { functionName = "test"
-                    , functionArguments = [ TypedVar TFloat "y" ]
-                    , functionReturnType = TInt
-                    , functionBody = Block [ Assignment (TypedVar TInt "z") (IntLit 5) ]
+        testProgramParser "let x: int = 3; fn test(y: float) -> int { z = 5; };" @?= Program
+            { globals = [ Decl "x" TInt (IntLit 3) ]
+            , funcs = 
+                [ Func
+                    { fName = "test"
+                    , fParams = [ "y" ]
+                    , fType = TCallable [ TFloat ] TInt
+                    , fBody = Block [ Expr $ Assign "z" (IntLit 5) ]
                     }
                 ]
             }

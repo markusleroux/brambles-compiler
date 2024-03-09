@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveTraversable #-}
 module AST where
 
 data UnOp
@@ -17,40 +18,45 @@ data BinOp
 data Type
     = TInt
     | TFloat
+    | TCallable { paramT :: [Type], returnT :: Type }
     deriving (Eq, Ord, Show)
 
 
 type Name = String
 
-data Variable
-    = UntypedVar Name
-    | TypedVar Type Name
-    deriving (Eq, Ord, Show)
-
-data Expr
-    = IntLit Integer
+data Expr n
+    = IntLit   Integer
     | FloatLit Double
-    | Variable Variable
-    | UnOp UnOp Expr
-    | BinOp BinOp Expr Expr
-    | Call Name [Expr]
-    | Assignment Variable Expr
-    deriving (Eq, Ord, Show)
+    | Var      n
+    | UnOp     UnOp (Expr n)
+    | BinOp    BinOp (Expr n) (Expr n)
+    | Call     n [Expr n]
+    | Assign   n (Expr n)
+    deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
-newtype Block = Block [Expr]
-    deriving (Eq, Ord, Show)
+data Stmt n
+    = Expr (Expr n)
+    | Decl { sName :: n, sType :: Type, sVal :: (Expr n) }
+    deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
+
+newtype Block n = Block { unBlock :: [Stmt n] }
+    deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 
-data Function = Function
-    { functionName :: Name
-    , functionArguments :: [Variable]
-    , functionReturnType :: Type
-    , functionBody :: Block
+data Func n = Func
+    { fName   :: n
+    , fParams :: [n]
+    , fType   :: Type
+    , fBody   :: Block n
     }
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
-data Program = Program
-    { globals :: [Expr]
-    , functions :: [Function]
+data Program n = Program
+    { globals :: [Stmt n]
+    , funcs   :: [Func n]
     }
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
+
+
+
+
