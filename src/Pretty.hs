@@ -20,46 +20,54 @@ instance Pretty BinOp where
     pretty Div  = pretty "/"
 
 instance Pretty Type where
-    pretty TInt    = pretty "int"
-    pretty TFloat  = pretty "float"
-
-instance Pretty Variable where
-    pretty (UntypedVar name)      = pretty name
-    pretty (TypedVar type_ name)  = pretty type_ <+> pretty name
+    pretty TInt            = pretty "int"
+    pretty TFloat          = pretty "float"
+    pretty (TCallable _ _) = undefined
 
 
-instance Pretty Expr where
+instance Pretty n => Pretty (Expr n) where
     pretty (IntLit val)         = pretty val
     pretty (FloatLit val)       = pretty val
-    pretty (Variable var)       = pretty var
+    pretty (Var var)            = pretty var
     pretty (UnOp op exp)        = pretty op <> prettyGrouped exp
     pretty (BinOp op expl expr) = prettyGrouped expl <+> pretty op <+> prettyGrouped expr
     pretty (Call name exps)     = pretty name <> align (tupled $ pretty <$> exps)
-    pretty (Assignment l r)     = pretty l <+> equals <+> pretty r
+    pretty (Assign name exp)    = pretty name <+> equals <+> pretty exp
         
+
 prettyGrouped lit@(IntLit _)   = pretty lit
 prettyGrouped lit@(FloatLit _) = pretty lit
-prettyGrouped var@(Variable _) = pretty var
+prettyGrouped var@(Var _)      = pretty var
 prettyGrouped call@(Call _ _)  = pretty call
 prettyGrouped p                = pretty "(" <> pretty p <> pretty ")"
 
-instance Pretty Block where
-    pretty (Block exprs) = braces $ multilineMb (null exprs) $ vsep $ prettyStatement <$> exprs
+instance Pretty n => Pretty (Stmt n) where
+    pretty (Expr exp) = pretty exp <> semi
+    pretty (Decl name t exp) = pretty "let" 
+                           <+> pretty name
+                            <> colon
+                           <+> pretty t
+                           <+> equals
+                           <+> pretty exp
+                            <> semi
+
+instance Pretty n => Pretty (Block n) where
+    pretty (Block stmts) = braces . encloseIf (null stmts) . vsep $ pretty <$> stmts
         where 
-            multilineMb = bool (enclose line line) id
+            encloseIf = bool (enclose line line) id
 
-prettyStatement :: Pretty a => a -> Doc ann
-prettyStatement = (<> semi) . pretty
-
-instance Pretty Function where
+instance Pretty n => Pretty (Func n) where
     pretty fn = pretty "fn"
-            <+> pretty (functionName fn)
-             <> align  (tupled $ pretty <$> functionArguments fn)
+            <+> pretty (fName fn)
+             <> align  (tupled prettyParams)
             <+> pretty "->"
-            <+> pretty (functionReturnType fn)
-            <+> pretty (functionBody fn)
+            <+> pretty (returnT . fType $ fn)  -- why does this compile?
+            <+> pretty (fBody fn)
+        where
+            prettyParams = zipWith (\a t -> pretty a <> colon <+> pretty t) (fParams fn) (paramT . fType $ fn)
 
 
-instance Pretty Program where
-    pretty (Program exprs functions) = vsep $ (prettyStatement <$> exprs) <> (prettyStatement <$> functions)
+instance Pretty n => Pretty (Program n) where
+    -- TODO: can use mapM?
+    pretty (Program stmts functions) = vsep $ (pretty <$> stmts) <> ((<> semi) . pretty <$> functions)
 

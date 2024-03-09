@@ -19,8 +19,8 @@ lexer = Tok.makeTokenParser languageDef
             , Tok.opStart = opParser
             , Tok.opLetter = opParser
             -- Reserved
-            , Tok.reservedNames = ["fn", "int", "float"]
-            , Tok.reservedOpNames = ["+", "-", "*", "/", ";", "->", "="]
+            , Tok.reservedNames = ["fn", "int", "float", "let"]
+            , Tok.reservedOpNames = ["+", "-", "*", "/", ";", "->", "=", ":"]
             -- Other
             , Tok.caseSensitive = True
             }
@@ -39,7 +39,9 @@ parens = Tok.parens lexer
 braces = Tok.braces lexer 
 commas = Tok.commaSep lexer
 semicolon = Tok.reservedOp lexer ";"
+colon = Tok.colon lexer
 
 fn = Tok.reserved lexer "fn"
 returnArrow = Tok.reservedOp lexer "->"
 assignment = Tok.reservedOp lexer "="
+decl = Tok.reserved lexer "let"
