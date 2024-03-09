@@ -32,11 +32,12 @@ data Expr n
     | BinOp    BinOp (Expr n) (Expr n)
     | Call     n [Expr n]
     | Assign   n (Expr n)
+    | EBlock   (Block n)
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 data Stmt n
     = Expr (Expr n)
-    | Decl { sName :: n, sType :: Type, sVal :: (Expr n) }
+    | Decl { sName :: n, sType :: Type, sVal :: Expr n }
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 newtype Block n = Block { unBlock :: [Stmt n] }

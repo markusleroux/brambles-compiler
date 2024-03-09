@@ -25,6 +25,7 @@ exprP = Expr.buildExpressionParser table factorP <?> "expression"
               <|> try (Call       <$> identifier <*> parens (commas exprP))
               <|> try (Assign     <$> (identifier <* assignment) <*> exprP)
               <|> try (Var        <$> identifier)
+              <|> try (EBlock     <$> blockP)
               <|> parens exprP
 
         table = [ [ unaryOp "-" Neg, unaryOp "+" Pos ]
