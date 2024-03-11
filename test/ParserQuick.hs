@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleInstances #-}
 module ParserQuick where
 
 import AST

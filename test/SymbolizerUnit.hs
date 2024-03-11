@@ -1,5 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
-
 module SymbolizerUnit where
 
 import Symbolize

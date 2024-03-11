@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveTraversable #-}
 module AST where
 
 data UnOp
