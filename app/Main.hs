@@ -2,9 +2,9 @@ module Main where
 
 import Parser (programP)
 
-import Text.Parsec (parse)
-import System.Console.Haskeline (defaultSettings, getInputLine, runInputT, InputT)
 import Control.Monad.IO.Class (liftIO)
+import System.Console.Haskeline (InputT, defaultSettings, getInputLine, runInputT)
+import Text.Parsec (parse)
 
 process :: String -> IO ()
 process line = do
@@ -12,13 +12,12 @@ process line = do
         Left err -> print err
         Right prog -> print prog
 
-
-main :: IO ()  -- REPL
+main :: IO () -- REPL
 main = runInputT defaultSettings loop
-    where
-        loop :: InputT IO ()
-        loop = do
-            minput <- getInputLine "womp> "
-            case minput of
-                Nothing     -> return ()
-                Just input  -> liftIO (process input) >> loop
+  where
+    loop :: InputT IO ()
+    loop = do
+        minput <- getInputLine "womp> "
+        case minput of
+            Nothing -> return ()
+            Just input -> liftIO (process input) >> loop
