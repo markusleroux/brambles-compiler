@@ -16,6 +16,7 @@ common compiler-common
         , FlexibleInstances
         , DeriveTraversable
         , ViewPatterns
+        , RecordWildCards
 
 library compiler-lib
     import: compiler-common
