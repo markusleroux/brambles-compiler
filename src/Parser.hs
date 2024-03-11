@@ -1,14 +1,20 @@
 module Parser where
 
-import Text.Parsec (endBy, eof, (<?>), (<|>), try, many)
+import Text.Parsec (eof, (<?>), (<|>), try, many)
 import Text.Parsec.String (Parser)
 import qualified Text.Parsec.Token as Tok
 import qualified Text.Parsec.Expr as Expr
 
 import Data.Either (lefts, rights)
 
-import Lexer
-import AST
+import Lexer 
+    ( assignment, braces, colon, float, floatType, identifier, integerType, lexer, parens
+    , semicolon, spaceConsumer, decl, commas, fn, returnArrow, natural
+    )
+import AST (
+      Program(..), Func(..), Type(..), Expr(..), Block(..)
+    , Stmt(..), BinOp(..), UnOp(..), Name
+    )
 
 
 typeP :: Parser Type
@@ -53,9 +59,9 @@ blockP = braces $ Block <$> many statementP
 functionP :: Parser (Func Name)
 functionP = do
         name <- fn *> identifier
-        (vars, paramT) <- unzip <$> parens (commas varAndTypeP) 
-        returnT <- returnArrow *> typeP
-        Func name vars (TCallable paramT returnT) <$> blockP
+        (vars, params) <- unzip <$> parens (commas varAndTypeP) 
+        returns <- returnArrow *> typeP
+        Func name vars (TCallable params returns) <$> blockP
     where
         varAndTypeP = (,) <$> (identifier <* colon) <*> typeP
 

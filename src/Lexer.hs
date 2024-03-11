@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 module Lexer where
 
 import Text.Parsec (alphaNum, oneOf, char, letter, (<|>))

@@ -1,9 +1,13 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Pretty where
 
-import Prettyprinter
-import AST
+import Prelude hiding (exp)
 
-import Data.Bool
+import Prettyprinter (Pretty(pretty), Doc, (<+>), equals, colon, semi, align, tupled, enclose, braces, vsep, line)
+import AST (Program(..), Func(..), Stmt(..), Block(..), Expr(..), UnOp(..), BinOp(..), Type(..))
+
+import Data.Bool (bool)
 
 -- TODO: 
     -- proper formatting
@@ -36,6 +40,7 @@ instance Pretty n => Pretty (Expr n) where
     pretty (EBlock block)       = pretty block
         
 
+prettyGrouped :: Pretty n => Expr n -> Doc ann
 prettyGrouped lit@(IntLit _)   = pretty lit
 prettyGrouped lit@(FloatLit _) = pretty lit
 prettyGrouped var@(Var _)      = pretty var
@@ -44,31 +49,27 @@ prettyGrouped p                = pretty "(" <> pretty p <> pretty ")"
 
 instance Pretty n => Pretty (Stmt n) where
     pretty (Expr exp) = pretty exp <> semi
-    pretty (Decl name t exp) = pretty "let" 
-                           <+> pretty name
-                            <> colon
-                           <+> pretty t
-                           <+> equals
-                           <+> pretty exp
-                            <> semi
+    pretty Decl {..} = pretty "let" <+> pretty sName <> colon <+> pretty sType <+> equals <+> pretty sVal <> semi
 
 instance Pretty n => Pretty (Block n) where
-    pretty (Block stmts) = braces . encloseIf (null stmts) . vsep $ pretty <$> stmts
+    pretty (Block stmts) = braces . newlineIf (null stmts) . vsep $ pretty <$> stmts
         where 
-            encloseIf = bool (enclose line line) id
+            newlineIf = bool (enclose line line) id
 
 instance Pretty n => Pretty (Func n) where
-    pretty fn = pretty "fn"
-            <+> pretty (fName fn)
+    pretty Func {..} 
+              = pretty "fn"
+            <+> pretty fName
              <> align  (tupled prettyParams)
             <+> pretty "->"
-            <+> pretty (returnT . fType $ fn)  -- why does this compile?
-            <+> pretty (fBody fn)
+            <+> pretty (returnT fType)  -- why does this compile?
+            <+> pretty fBody
         where
-            prettyParams = zipWith (\a t -> pretty a <> colon <+> pretty t) (fParams fn) (paramT . fType $ fn)
+            prettyParams = zipWith prettyParamAndType fParams $ paramT fType
+            prettyParamAndType a t = pretty a <> colon <+> pretty t
 
 
 instance Pretty n => Pretty (Program n) where
     -- TODO: can use mapM?
-    pretty (Program stmts functions) = vsep $ (pretty <$> stmts) <> ((<> semi) . pretty <$> functions)
+    pretty Program {..} = vsep $ (pretty <$> globals) <> ((<> semi) . pretty <$> funcs)
 

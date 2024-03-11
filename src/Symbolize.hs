@@ -7,21 +7,10 @@ import AST
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 
-import Control.Monad.State
-import Control.Monad.Except
-import Control.Monad.Identity
-
-{-
-Approach 1: mutual recursion
-Approach 2: mapM
-    - but how to introduce scoping?
-Approach 3: keep a flag like Program (Name, IsScoped)
-    - rename :: Program (Name, IsScoped) -> Program Unique
-    - How to set-up IsScoped flag?
-    - Will this mess with other things? e.g. parsing now needs to know about scoping?
-    - Should it go in the type Name itself? e.g. ScopedName
--}
-
+import Control.Monad.State (StateT, MonadState, get, gets, evalStateT, put, state)
+import Control.Monad.Except (ExceptT, MonadError, runExceptT, throwError)
+import Control.Monad.Identity (Identity, runIdentity)
+import Control.Monad.IO.Class (MonadIO)
 
 
 data SymbolizeException
@@ -57,19 +46,19 @@ class (ThrowsSymbolizeException m, ScopedMonad m) => MonadSymbolize m sym where
 
 
 renameProgram :: MonadSymbolize m sym => Program Name -> m (Program sym)
-renameProgram p = Program <$> mapM renameStatement (globals p) <*> mapM renameFunction  (funcs p)
+renameProgram Program{..} = Program <$> mapM renameStatement globals <*> mapM renameFunction funcs
 
 renameFunction :: MonadSymbolize m sym => Func Name -> m (Func sym)
-renameFunction f = do
-        u <- createSym $ fName f -- function symbol will be available inside function (recursion)
+renameFunction Func{..} = do
+    u <- createSym fName -- function symbol will be available inside function (recursion)
 
-        -- enter new scope, no references to variables defined in new scope from outside
-        (args, body) <- withScope $ do
-            args <- mapM createSym $ fParams f
-            body <- renameBlock    $ fBody f
-            return (args, body)
+    -- enter new scope, no references to variables defined in new scope from outside
+    (args, body) <- withScope $ do
+        args <- mapM createSym fParams
+        body <- renameBlock fBody
+        return (args, body)
 
-        return $ Func u args (fType f) body
+    return $ Func u args fType body
 
 -- scoping is the responsibility of the caller, since function args need to be defined in the block's scope
 renameBlock :: MonadSymbolize m sym => Block Name -> m (Block sym)

@@ -57,6 +57,3 @@ data Program n = Program
     }
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
-
-
-
