@@ -1,8 +1,6 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE LambdaCase #-}
-
 module Symbolize where
+
+import Prelude hiding (exp)
 
 import AST
 
@@ -65,7 +63,7 @@ renameProgram p = Program <$> mapM renameStatement (globals p) <*> mapM renameFu
 
 renameFunction :: MonadSymbolize m sym => Func Name -> m (Func sym)
 renameFunction f = do
-        u <- createSym $ fName f
+        u <- createSym $ fName f -- function symbol will be available inside function (recursion)
 
         -- enter new scope, no references to variables defined in new scope from outside
         (args, body) <- withScope $ do
@@ -141,12 +139,14 @@ instance Monad m => ScopedMonad (IncrementalSymbolizeM m) where
 
 instance Monad m => MonadSymbolize (IncrementalSymbolizeM m) Int where
     getSymMb name = gets $ Map.lookup name . fst
-    createSym name = (modify $ \(m, c) -> (Map.insert name (c + 1) m, c+1)) >> gets snd  -- aliasing allowed
+    createSym name = modify (\(m, c) -> (Map.insert name (c + 1) m, c+1)) >> gets snd  -- aliasing allowed
 
 
 runIncrementalSymbolizeT :: Monad m => IncrementalSymbolizeM m a -> m (Either SymbolizeException a)
 runIncrementalSymbolizeT = (`evalStateT` (Map.empty, -1)) . runExceptT . runIncrementalSymbolizeM
 
 type IncrementalSymbolize = IncrementalSymbolizeM Identity
+
+runIncrementalSymbolize :: IncrementalSymbolize a -> Either SymbolizeException a
 runIncrementalSymbolize = runIdentity . runIncrementalSymbolizeT
 
