@@ -4,8 +4,6 @@ import Prelude hiding (exp)
 
 import AST
 
-import Data.Unique
-
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 
@@ -93,34 +91,6 @@ renameExpr (EBlock block)       = EBlock     <$> withScope (renameBlock block)
 
 
 
--- Unique-based symbolizer using Data.Map in StateT
-newtype UniqueSymbolizeM m a 
-        = UniqueSymbolizeM { runUniqueSymbolizeM :: ExceptT SymbolizeException (StateT (Map String Unique) m) a }
-    deriving (Functor, Applicative, Monad, MonadState (Map String Unique), MonadIO, MonadError SymbolizeException)
-
-instance Monad m => ThrowsSymbolizeException (UniqueSymbolizeM m) where
-    throwUndefined = throwError . Undefined
-    throwRedefined = throwError . Redefined
-
-instance Monad m => ScopedMonad (UniqueSymbolizeM m) where
-    withScope computation = do
-        outerScope <- get      -- save the outer scope
-        result <- computation  -- run the computation
-        put outerScope         -- restore the outer scope
-        pure result
-
-instance MonadIO m => MonadSymbolize (UniqueSymbolizeM m) Unique where
-    getSymMb = gets . Map.lookup
-        
-    createSym name = do  -- aliasing allowed
-        u <- liftIO newUnique
-        modify $ Map.insert name u
-        pure u
-
-runUniqueSymbolizeT :: MonadIO m => UniqueSymbolizeM m a -> m (Either SymbolizeException a)
-runUniqueSymbolizeT = (`evalStateT` Map.empty) . runExceptT . runUniqueSymbolizeM
-
-
 -- Incremental symbolizer using (Data.Map, Int) in StateT
 newtype IncrementalSymbolizeM m a 
         = IncrementalSymbolizeM { runIncrementalSymbolizeM :: ExceptT SymbolizeException (StateT (Map String Int, Int) m) a }
@@ -139,7 +109,7 @@ instance Monad m => ScopedMonad (IncrementalSymbolizeM m) where
 
 instance Monad m => MonadSymbolize (IncrementalSymbolizeM m) Int where
     getSymMb name = gets $ Map.lookup name . fst
-    createSym name = modify (\(m, c) -> (Map.insert name (c + 1) m, c+1)) >> gets snd  -- aliasing allowed
+    createSym name = state $ \(m, c) -> (c + 1, (Map.insert name (c + 1) m, c+1)) -- aliasing allowed
 
 
 runIncrementalSymbolizeT :: Monad m => IncrementalSymbolizeM m a -> m (Either SymbolizeException a)
