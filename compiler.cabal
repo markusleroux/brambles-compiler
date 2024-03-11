@@ -2,78 +2,75 @@ cabal-version:      2.4
 name:               compiler
 version:            0.1.0.0
 
--- A short (one-line) description of the package.
--- synopsis:
+common compiler-common
+    default-language: Haskell2010
 
--- A longer description of the package.
--- description:
+    build-depends: 
+          base          ^>=4.15.1.0
 
--- A URL where users can report bugs.
--- bug-reports:
-
--- The license under which the package is released.
--- license:
-
--- The package author(s).
--- author:
-
--- An email address to which users can send suggestions, bug reports, and patches.
--- maintainer:
-
--- A copyright notice.
--- copyright:
--- category:
--- extra-source-files: CHANGELOG.md
+    default-extensions:
+          GeneralizedNewtypeDeriving
+        , LambdaCase
+        , MultiParamTypeClasses
+        , FlexibleContexts
+        , FlexibleInstances
+        , DeriveTraversable
+        , ViewPatterns
 
 library compiler-lib
-    exposed-modules: Parser, AST, Lexer, Pretty, Symbolize
-
-    -- Modules included in this library but not exported.
-    -- other-modules:  
-
-    -- LANGUAGE extensions used by modules in this package.
-    -- other-extensions:
-    build-depends:    
-        base ^>=4.15.1.0,
-        parsec ^>=3.1.17.0,
-        prettyprinter ^>=1.7.1,
-        containers ^>=0.6.4.1,
-        mtl ^>=2.2.2
+    import: compiler-common
 
     hs-source-dirs:   src
-    default-language: Haskell2010
+    exposed-modules: 
+          Parser
+        , AST
+        , Lexer
+        , Pretty
+        , Symbolize
+
+    build-depends:    
+        , parsec        ^>=3.1.17.0
+        , prettyprinter ^>=1.7.1
+        , containers    ^>=0.6.4.1
+        , mtl           ^>=2.2.2
+
+    ghc-options:         -Wall
 
 executable compiler
-    main-is:          Main.hs
-
-    -- Modules included in this executable, other than Main.
-    -- other-modules:
-
-    -- LANGUAGE extensions used by modules in this package.
-    -- other-extensions:
-    build-depends:
-        base ^>=4.15.1.0,
-        haskeline ^>=0.8.2.1,
-        parsec ^>=3.1.17.0,
-        compiler-lib
+    import: compiler-common
 
     hs-source-dirs:   app
-    default-language: Haskell2010
+    main-is:          Main.hs
 
-test-suite unit-test
-    type: exitcode-stdio-1.0
-    main-is: Suite.hs 
-    other-modules: ASTPrettyUnit, ParserUnit, ParserQuick, SymbolizerUnit
+    build-depends:
+          haskeline    ^>=0.8.2.1
+        , parsec       ^>=3.1.17.0
+        , compiler-lib
+
+common test-common
+    import: compiler-common
+
     hs-source-dirs: test
 
     build-depends:
-        base ^>=4.15.1.0,
-        tasty,
-        tasty-hunit,
-        parsec ^>=3.1.17.0,
-        prettyprinter ^>=1.7.1,
-        tasty-quickcheck ^>=0.10.3,
-        compiler-lib
+          tasty
+        , tasty-hunit
+        , compiler-lib
 
-    default-language: Haskell2010
+
+test-suite unit-test
+    import: test-common
+    type: exitcode-stdio-1.0
+    main-is: Suite.hs 
+
+    other-modules: 
+          ASTPrettyUnit
+        , ParserUnit
+        , ParserQuick
+        , SymbolizerUnit
+
+    build-depends:
+          parsec           ^>=3.1.17.0
+        , prettyprinter    ^>=1.7.1
+        , tasty-quickcheck ^>=0.10.3
 
