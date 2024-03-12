@@ -1,4 +1,4 @@
-module ParserUnit where
+module Parser.Unit where
 
 import AST
 import Parser

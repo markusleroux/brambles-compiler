@@ -1,9 +1,9 @@
 module Main where
 
-import ASTPrettyUnit
-import ParserQuick
-import ParserUnit
-import SymbolizerUnit
+import AST.PrettyUnit
+import Parser.Prop
+import Parser.Unit
+import Symbolizer.Unit
 import Test.Tasty
 
 main :: IO ()

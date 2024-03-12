@@ -1,4 +1,4 @@
-module ASTPrettyUnit where
+module AST.PrettyUnit where
 
 import AST
 import Parser
