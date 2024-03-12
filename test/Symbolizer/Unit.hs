@@ -1,4 +1,4 @@
-module SymbolizerUnit where
+module Symbolizer.Unit where
 
 import AST
 import Data.Foldable

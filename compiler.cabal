@@ -65,13 +65,15 @@ test-suite unit-test
     main-is: Suite.hs 
 
     other-modules: 
-          ASTPrettyUnit
-        , ParserUnit
-        , ParserQuick
-        , SymbolizerUnit
+          AST.PrettyUnit
+        , Parser.Unit
+        , Parser.Gen
+        , Parser.Prop
+        , Symbolizer.Unit
 
     build-depends:
           parsec           ^>=3.1.17.0
         , prettyprinter    ^>=1.7.1
-        , tasty-quickcheck ^>=0.10.3
+        , tasty-hedgehog   ^>=1.4.0.2
+        , hedgehog         ^>=1.4
 

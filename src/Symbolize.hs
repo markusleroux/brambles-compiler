@@ -84,7 +84,7 @@ renameExpr (Call name exps) = Call <$> getSym name <*> mapM renameExpr exps
 renameExpr (Assign var exp) = Assign <$> createSym var <*> renameExpr exp
 renameExpr (EBlock block) = EBlock <$> withScope (renameBlock block)
 
-{- 
+{-
  - Incremental symbolizer using (Data.Map, Int) in StateT
  -}
 newtype IncrementalSymbolizeM m a = IncrementalSymbolizeM {runIncrementalSymbolizeM :: ExceptT SymbolizeException (StateT (Map String Int, Int) m) a}
