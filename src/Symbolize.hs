@@ -87,8 +87,8 @@ renameExpr (EBlock block) = EBlock <$> withScope (renameBlock block)
 {-
  - Incremental symbolizer using (Data.Map, Int) in StateT
  -}
-newtype IncrementalSymbolizeM m a = IncrementalSymbolizeM {runIncrementalSymbolizeM :: ExceptT SymbolizeException (StateT (Map String Int, Int) m) a}
-    deriving (Functor, Applicative, Monad, MonadState (Map String Int, Int), MonadIO, MonadError SymbolizeException)
+newtype IncrementalSymbolizeM m a = IncrementalSymbolizeM {runIncrementalSymbolizeM :: ExceptT SymbolizeException (StateT (Map String Int, [Int]) m) a}
+    deriving (Functor, Applicative, Monad, MonadState (Map String Int, [Int]), MonadIO, MonadError SymbolizeException)
 
 instance Monad m => ThrowsSymbolizeException (IncrementalSymbolizeM m) where
     throwUndefined = throwError . Undefined
@@ -103,10 +103,10 @@ instance Monad m => ScopedMonad (IncrementalSymbolizeM m) where
 
 instance Monad m => MonadSymbolize (IncrementalSymbolizeM m) Int where
     getSymMb name = gets $ Map.lookup name . fst
-    createSym name = state $ \(m, c) -> (c + 1, (Map.insert name (c + 1) m, c + 1)) -- aliasing allowed
+    createSym name = state $ \(m, x:xs) -> (x, (Map.insert name x m, xs)) -- aliasing allowed
 
 runIncrementalSymbolizeT :: Monad m => IncrementalSymbolizeM m a -> m (Either SymbolizeException a)
-runIncrementalSymbolizeT = (`evalStateT` (Map.empty, -1)) . runExceptT . runIncrementalSymbolizeM
+runIncrementalSymbolizeT = (`evalStateT` (Map.empty, [0..])) . runExceptT . runIncrementalSymbolizeM
 
 type IncrementalSymbolize = IncrementalSymbolizeM Identity
 
