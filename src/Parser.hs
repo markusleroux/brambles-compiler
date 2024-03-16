@@ -3,6 +3,7 @@ module Parser where
 import AST (
     BinOp (..),
     Block (..),
+    Var (..),
     Expr (..),
     Func (..),
     Name,
@@ -47,15 +48,18 @@ import qualified Text.Parsec.Token as Tok
 typeP :: Parser Type
 typeP = TInt <$ integerType <|> TFloat <$ floatType <?> "type"
 
+varP :: Parser (Var Name)
+varP = V <$> identifier
+
 exprP :: Parser (Expr Name)
 exprP = Expr.buildExpressionParser table factorP <?> "expression"
   where
     factorP =
         try (FloatLit <$> float)
             <|> try (IntLit <$> natural)
-            <|> try (Call <$> identifier <*> parens (commas exprP))
-            <|> try (Assign <$> (identifier <* assignment) <*> exprP)
-            <|> try (Var <$> identifier)
+            <|> try (Call <$> varP <*> parens (commas exprP))
+            <|> try (Assign <$> (varP <* assignment) <*> exprP)
+            <|> try (Var <$> varP)
             <|> try (EBlock <$> blockP)
             <|> parens exprP
 
@@ -73,7 +77,7 @@ statementP :: Parser (Stmt Name)
 statementP = (assignP <|> (Expr <$> exprP)) <* semicolon
   where
     assignP =
-        Decl <$> (decl *> identifier) <*> (colon *> typeP) <*> (assignment *> exprP)
+        Decl <$> (decl *> varP) <*> (colon *> typeP) <*> (assignment *> exprP)
 
 -- a block is many statements wrapped in braces
 blockP :: Parser (Block Name)
@@ -82,12 +86,12 @@ blockP = braces $ Block <$> many statementP
 -- fn name(t0 arg0, ...) -> returnType { ... }
 functionP :: Parser (Func Name)
 functionP = do
-    name <- fn *> identifier
+    name <- fn *> varP
     (vars, params) <- unzip <$> parens (commas varAndTypeP)
     returns <- returnArrow *> typeP
     Func name vars (TCallable params returns) <$> blockP
   where
-    varAndTypeP = (,) <$> (identifier <* colon) <*> typeP
+    varAndTypeP = (,) <$> (varP <* colon) <*> typeP
 
 -- a program is a list of globals and functions
 programP :: Parser (Program Name)

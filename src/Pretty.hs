@@ -5,6 +5,7 @@ module Pretty where
 import AST (
     BinOp (..),
     Block (..),
+    Var (..),
     Expr (..),
     Func (..),
     Program (..),
@@ -47,6 +48,9 @@ instance Pretty Type where
     pretty TInt = pretty "int"
     pretty TFloat = pretty "float"
     pretty (TCallable _ _) = undefined
+
+instance Pretty n => Pretty (Var n) where
+    pretty (V v) = pretty v
 
 instance Pretty n => Pretty (Expr n) where
     pretty (IntLit val) = pretty val

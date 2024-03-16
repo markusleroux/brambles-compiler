@@ -1,5 +1,7 @@
+{-# LANGUAGE ScopedTypeVariables, DeriveAnyClass, DerivingStrategies, DerivingVia #-}
 module Symbolize where
 
+import Data.Generics.Multiplate
 import AST
 import Control.Monad.Except (
     ExceptT,
@@ -31,70 +33,62 @@ instance Show SymbolizeException where
     show (Undefined n) = "Undefined name: " ++ show n
     show (Redefined n) = "Redefined name: " ++ show n
 
-class Monad m => ThrowsSymbolizeException m where
+class MonadError SymbolizeException m => ThrowsSymbolizeException m where
     throwUndefined :: Name -> m a
-    throwRedefined :: Name -> m a
+    throwUndefined = throwError . Undefined
 
-class Monad m => ScopedMonad m where
+    throwRedefined :: Name -> m a
+    throwRedefined = throwError . Redefined
+
+class Monad m => MonadScoping m where
     -- block scoping
     withScope :: m a -> m a
 
 -- all scoping is accomplished through a naming pass, which associates a unique identifier with each name
-class (ThrowsSymbolizeException m, ScopedMonad m) => MonadSymbolize m sym where
-    -- get the name associated with a given identifier
+class (ThrowsSymbolizeException m, MonadScoping m) => MonadSymbolize m sym where
     getSymMb :: Name -> m (Maybe sym)
-
-    -- create new symbol
     createSym :: Name -> m sym
 
-    -- get the name associated with a given identifier (or throw)
     getSym :: Name -> m sym
     getSym name = getSymMb name >>= maybe (throwUndefined name) return
 
-renameProgram :: MonadSymbolize m sym => Program Name -> m (Program sym)
-renameProgram Program{..} = Program <$> mapM renameStatement globals <*> mapM renameFunction funcs
 
-renameFunction :: MonadSymbolize m sym => Func Name -> m (Func sym)
-renameFunction Func{..} = do
-    u <- createSym fName -- function symbol will be available inside function (recursion)
+scopingPlate :: forall m. MonadScoping m => Plate Name m -> Plate Name m
+scopingPlate p = undefined
 
-    -- enter new scope, no references to variables defined in new scope from outside
-    (args, body) <- withScope $ do
-        args <- mapM createSym fParams
-        body <- renameBlock fBody
-        return (args, body)
+-- TODO: How to change type of symbol?
+--       MonadSymbolize m Name, then map to int?
+--       OR Constant (Block sym)
+renamePlate :: forall m. MonadSymbolize m Name => Plate Name m
+renamePlate = (mkPlate (\p -> p renameRecurse)) { func = renameFunc, stmt = renameStmt , expr = renameExpr, var = mapM getSym }
+  where
+    renameRecurse = multiplate renamePlate
 
-    return $ Func u args fType body
+    renameFunc Func{..} = do
+      u <- mapM createSym fName -- function symbol will be available inside function (recursion)
 
--- scoping is the responsibility of the caller, since function args need to be defined in the block's scope
-renameBlock :: MonadSymbolize m sym => Block Name -> m (Block sym)
-renameBlock = fmap Block . mapM renameStatement . unBlock
+      (args, body) <- withScope $ do
+          args <- mapM (mapM createSym) fParams
+          body <- block renameRecurse fBody
+          return (args, body)
 
-renameStatement :: MonadSymbolize m sym => Stmt Name -> m (Stmt sym)
-renameStatement (Expr exp) = Expr <$> renameExpr exp
-renameStatement (Decl name t exp) = Decl <$> createSym name <*> pure t <*> renameExpr exp
+      return $ Func u args fType body
 
-renameExpr :: MonadSymbolize m sym => Expr Name -> m (Expr sym)
-renameExpr (IntLit v) = return $ IntLit v
-renameExpr (FloatLit v) = return $ FloatLit v
-renameExpr (Var v) = Var <$> getSym v
-renameExpr (UnOp op exp) = UnOp op <$> renameExpr exp
-renameExpr (BinOp op expl expr) = BinOp op <$> renameExpr expl <*> renameExpr expr
-renameExpr (Call name exps) = Call <$> getSym name <*> mapM renameExpr exps
-renameExpr (Assign var exp) = Assign <$> createSym var <*> renameExpr exp
-renameExpr (EBlock block) = EBlock <$> withScope (renameBlock block)
+    renameStmt (Decl n t e) = Decl <$> mapM createSym n <*> type_ renameRecurse t <*> expr renameRecurse e
+    renameStmt s = stmt renameRecurse s
+
+    renameExpr (EBlock b) = withScope (EBlock <$> block renameRecurse b)
+    renameExpr v = expr renameRecurse v
 
 {-
- - Incremental symbolizer using (Data.Map, Int) in StateT
+ - Incremental symbolizer using (Data.Map, [Int]) in StateT
  -}
-newtype IncrementalSymbolizeM m a = IncrementalSymbolizeM {runIncrementalSymbolizeM :: ExceptT SymbolizeException (StateT (Map String Int, [Int]) m) a}
-    deriving (Functor, Applicative, Monad, MonadState (Map String Int, [Int]), MonadIO, MonadError SymbolizeException)
+newtype IncrementalSymbolizeM m a = IncrementalSymbolizeM
+    { runIncrementalSymbolizeM :: ExceptT SymbolizeException (StateT (Map String Int, [Int]) m) a }
+  deriving newtype (Functor, Applicative, Monad, MonadState (Map String Int, [Int]), MonadIO, MonadError SymbolizeException)
+  deriving anyclass ThrowsSymbolizeException
 
-instance Monad m => ThrowsSymbolizeException (IncrementalSymbolizeM m) where
-    throwUndefined = throwError . Undefined
-    throwRedefined = throwError . Redefined
-
-instance Monad m => ScopedMonad (IncrementalSymbolizeM m) where
+instance Monad m => MonadScoping (IncrementalSymbolizeM m) where
     withScope computation = do
         outerScope <- get -- save the outer scope
         result <- computation -- run the computation
@@ -105,6 +99,10 @@ instance Monad m => MonadSymbolize (IncrementalSymbolizeM m) Int where
     getSymMb name = gets $ Map.lookup name . fst
     createSym name = state $ \(m, x:xs) -> (x, (Map.insert name x m, xs)) -- aliasing allowed
 
+instance Monad m => MonadSymbolize (IncrementalSymbolizeM m) Name where
+    getSymMb name = gets $ fmap show . Map.lookup name . fst
+    createSym name = state $ \(m, x:xs) -> (show x, (Map.insert name x m, xs)) -- aliasing allowed
+
 runIncrementalSymbolizeT :: Monad m => IncrementalSymbolizeM m a -> m (Either SymbolizeException a)
 runIncrementalSymbolizeT = (`evalStateT` (Map.empty, [0..])) . runExceptT . runIncrementalSymbolizeM
 
@@ -112,3 +110,4 @@ type IncrementalSymbolize = IncrementalSymbolizeM Identity
 
 runIncrementalSymbolize :: IncrementalSymbolize a -> Either SymbolizeException a
 runIncrementalSymbolize = runIdentity . runIncrementalSymbolizeT
+
