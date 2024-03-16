@@ -1,5 +1,7 @@
+{-# LANGUAGE RankNTypes #-}
 module Symbolizer.Unit where
 
+import Data.Generics.Multiplate
 import AST
 import Data.Foldable
 import Symbolize
@@ -8,17 +10,17 @@ import Test.Tasty.HUnit
 
 nestedBlock =
     Block
-        [ Decl "x" TInt (IntLit 3)
-        , Expr (Var "x")
+        [ Decl (V "x") TInt (IntLit 3)
+        , Expr (Var (V "x"))
         , Expr
             ( EBlock
                 ( Block
-                    [ Decl "x" TInt (IntLit 3)
-                    , Expr (Var "x")
+                    [ Decl (V "x") TInt (IntLit 3)
+                    , Expr (Var (V "x"))
                     ]
                 )
             )
-        , Expr (Var "x")
+        , Expr (Var (V "x"))
         ]
 
 symbolizerTests =
@@ -31,13 +33,13 @@ symbolizerTests =
 blockTests =
     testGroup
         "Block"
-        [ testCase "Decl" $ testBlock (Block [Decl "x" TInt (IntLit 3)]) [0]
-        , testCase "Two Decl" $ testBlock (Block [Decl "x" TInt (IntLit 3), Decl "y" TInt (IntLit 3)]) [0, 1]
-        , testCase "Two Decl and Var" $ testBlock (Block [Decl "x" TInt (IntLit 3), Decl "y" TInt (IntLit 3), Expr (Var "x")]) [0, 1, 0]
+        [ testCase "Decl" $ testBlock (Block [Decl (V "x") TInt (IntLit 3)]) [0]
+        , testCase "Two Decl" $ testBlock (Block [Decl (V "x") TInt (IntLit 3), Decl (V "y") TInt (IntLit 3)]) [0, 1]
+        , testCase "Two Decl and Var" $ testBlock (Block [Decl (V "x") TInt (IntLit 3), Decl (V "y") TInt (IntLit 3), Expr (Var (V "x"))]) [0, 1, 0]
         , testCase "Nested Blocks" $ testBlock nestedBlock [0, 0, 1, 1, 0]
         ]
   where
-    testBlock = testRename renameBlock
+    testBlock = testRename block
 
 funcTests =
     testGroup
@@ -45,7 +47,7 @@ funcTests =
         [ testCase "Recursion" $
             testFunc
                 Func
-                    { fName = "func"
+                    { fName = V "func"
                     , fParams = []
                     , fType = TCallable [] TInt
                     , fBody = Block []
@@ -54,26 +56,28 @@ funcTests =
         , testCase "param binding" $
             testFunc
                 Func
-                    { fName = "func"
-                    , fParams = ["a", "b"]
+                    { fName = V "func"
+                    , fParams = [V "a", V "b"]
                     , fType = TCallable [TInt, TInt] TInt
-                    , fBody = Block [Decl "a" TInt (IntLit 3), Expr (Var "a"), Expr (Var "b")]
+                    , fBody = Block [Decl (V "a") TInt (IntLit 3), Expr (Var (V "a")), Expr (Var (V "b"))]
                     }
                 [0, 1, 2, 3, 3, 2]
         , testCase "nested block" $
             testFunc
                 Func
-                    { fName = "func"
-                    , fParams = ["a", "b"]
+                    { fName = V "func"
+                    , fParams = [V "a", V "b"]
                     , fType = TCallable [TInt, TInt] TInt
                     , fBody = nestedBlock
                     }
                 [0, 1, 2, 3, 3, 4, 4, 3]
         ]
   where
-    testFunc = testRename renameFunction
+    testFunc = testRename func
 
-testRename :: Foldable t => (t Name -> IncrementalSymbolize (t Int)) -> t Name -> [Int] -> Assertion
-testRename renamer v expected = case runIncrementalSymbolize $ renamer v of
+
+testRename :: Foldable t => Projector (Plate Name) (t Name) -> t Name -> [Int] -> Assertion
+testRename p v expected = case runIncrementalSymbolize $ traverseMFor p renamePlate v of
     Left err -> error $ show err
-    Right renamed -> toList renamed @?= expected
+    Right renamed -> toList renamed @?= show <$> expected
+
