@@ -34,6 +34,7 @@ library compiler-lib
         , prettyprinter ^>=1.7.1
         , containers    ^>=0.6.4.1
         , mtl           ^>=2.2.2
+        , multiplate    ^>=0.0.3
 
     ghc-options:         -Wall
 
@@ -76,4 +77,5 @@ test-suite unit-test
         , prettyprinter    ^>=1.7.1
         , tasty-hedgehog   ^>=1.4.0.2
         , hedgehog         ^>=1.4
+        , multiplate    ^>=0.0.3
 

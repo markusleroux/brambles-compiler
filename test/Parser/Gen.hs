@@ -27,9 +27,13 @@ genBinOp = Gen.element [AST.Add, AST.Sub, AST.Mult, AST.Div]
 genType :: Gen AST.Type
 genType = Gen.element [AST.TInt, AST.TFloat]
 
-genIdentifier :: Gen AST.Name
-genIdentifier = Gen.filter isValidIdentifier $ Gen.string idRange validChar
+
+-- TODO: these should be generic over n
+
+genVar :: Gen (AST.Var AST.Name)
+genVar = AST.V <$> genIdentifier
   where
+    genIdentifier = Gen.filter isValidIdentifier $ Gen.string idRange validChar
     validChar = Gen.choice [Gen.alpha, Gen.constant '_']
     isValidIdentifier = isRight . parse identifier ""
 
@@ -39,19 +43,19 @@ genExpr =
         Gen.choice
         [ AST.IntLit <$> Gen.integral_ intRange
         , AST.FloatLit <$> Gen.double floatRange
-        , AST.Var <$> genIdentifier
+        , AST.Var <$> genVar
         ]
         [ AST.UnOp <$> genUnOp <*> genExpr
         , AST.BinOp <$> genBinOp <*> genExpr <*> genExpr
-        , AST.Call <$> genIdentifier <*> Gen.list paramRange genExpr
-        , AST.Assign <$> genIdentifier <*> genExpr
+        , AST.Call <$> genVar <*> Gen.list paramRange genExpr
+        , AST.Assign <$> genVar <*> genExpr
         , AST.EBlock <$> genBlock
         ]
 
 genStmt :: Gen (AST.Stmt AST.Name)
 genStmt = Gen.recursive Gen.choice []
     [ AST.Expr <$> genExpr
-    , AST.Decl <$> genIdentifier <*> genType <*> genExpr
+    , AST.Decl <$> genVar <*> genType <*> genExpr
     ]
 
 genBlock :: Gen (AST.Block AST.Name)
@@ -59,9 +63,9 @@ genBlock = AST.Block <$> Gen.list blockLen genStmt
 
 genFunction :: Gen (AST.Func AST.Name)
 genFunction = do
-    (params, paramTs) <- unzip <$> Gen.list paramRange ((,) <$> genIdentifier <*> genType)
+    (params, paramTs) <- unzip <$> Gen.list paramRange ((,) <$> genVar <*> genType)
     let genCallable = AST.TCallable paramTs <$> genType
-    AST.Func <$> genIdentifier <*> pure params <*> genCallable <*> genBlock
+    AST.Func <$> genVar <*> pure params <*> genCallable <*> genBlock
 
 genProgram :: Gen (AST.Program AST.Name)
 genProgram = AST.Program <$> genStatements <*> genFunctions
