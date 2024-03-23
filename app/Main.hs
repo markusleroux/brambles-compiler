@@ -14,27 +14,32 @@ import Options.Applicative
 
 data Options = Options
   { ir :: Bool
+  , compile :: Maybe FilePath
   }
 
 commandLine :: Parser Options
 commandLine = Options
   <$> switch (long "ir" <> short 'i' <> help "Print the IR to stdout")
+  <*> optional ( strOption (long "output" <> short 'o' <> help "Compile output to file") )
 
 data Printers = Printers
   { astPrinter :: Maybe (AST.Expr AST.Name -> IO ())
   , irPrinter :: Maybe (AST.Expr AST.Name -> IO ())
+  , compilePrinter :: Maybe (AST.Expr AST.Name -> IO ())
   }
 
 fromCommandLine :: Options -> Printers
 fromCommandLine Options{..} = Printers
   { astPrinter = Just print
   , irPrinter = if ir then Just (TIO.putStrLn . ppllvm . toLLVM) else Nothing
+  , compilePrinter = flip (LLVM.compile . toLLVM) <$> compile
   }
 
 runPrinters :: Printers -> AST.Expr AST.Name -> IO ()
 runPrinters Printers{..} e = do
   sequence $ astPrinter <*> pure e
   sequence $ irPrinter <*> pure e
+  sequence $ compilePrinter <*> pure e
   pure ()
 
 
