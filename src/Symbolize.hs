@@ -61,7 +61,6 @@ renamePlate = (mkPlate (\p -> p renameRecurse)) { stmt = renameStmt , expr = ren
   where
     renameRecurse = multiplate renamePlate
 
-
     renameStmt (SDecl n t e) = SDecl <$> mapM createSym n <*> typ renameRecurse t <*> expr renameRecurse e
     renameStmt SFunc{..} = do
       u <- mapM createSym fName -- function symbol will be available inside function (recursion)
