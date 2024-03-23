@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 module LLVM where
 
 import qualified AST
@@ -12,9 +12,13 @@ import qualified LLVM.IRBuilder.Monad as LLVM
 import LLVM.Pretty (ppllvm)
 
 import Control.Exception (bracket)
+
+import Data.Text (Text)
 import qualified Data.Text.IO as T
+import qualified Data.Text.Encoding as T
 
 import Data.String.Conversions
+import Data.FileEmbed
 import System.IO
 import System.Directory (removePathForcibly, withCurrentDirectory)
 import System.Posix.Temp
@@ -41,21 +45,35 @@ exprToLLVM (AST.EBinOp op e1 e2) = join $ binOpToLLVM AST.TInt op <$> exprToLLVM
 exprToLLVM _ = undefined
 
 toLLVM :: AST.Expr n -> LLVM.Module
-toLLVM expr = LLVM.buildModule "test" $ LLVM.function "main" [] LLVM.i32 $ \_ -> (exprToLLVM expr >> (LLVM.ret $ LLVM.int32 0))
+toLLVM expr = LLVM.buildModule "test" $ do
+  printInt <- LLVM.extern "printint" [LLVM.i32] LLVM.i32
+
+  LLVM.function "main" [] LLVM.i32 $ \_ -> do
+    e <- exprToLLVM expr
+    _ <- LLVM.call printInt [(e, [])]
+
+    LLVM.ret $ LLVM.int32 0
 
 
 -- https://github.com/danieljharvey/llvm-calc/blob/trunk/llvm-calc/src/Calc/Compile/RunLLVM.hs
+cRuntime :: Text
+cRuntime = T.decodeUtf8 $(makeRelativeToProject "static/runtime.c" >>= embedFile)
+
 compile :: LLVM.Module -> FilePath -> IO ()
 compile llvmModule outfile =
   bracket (mkdtemp "build") removePathForcibly $ \buildDir ->
     withCurrentDirectory buildDir $ do
       (llvm, llvmHandle) <- mkstemps "output" ".ll"
+      (runtime, runtimeHandle) <- mkstemps "runtime" ".c"
 
       let moduleText = cs (ppllvm llvmModule)
 
       T.hPutStrLn llvmHandle moduleText  -- write the llvmmodule a file
+      T.hPutStrLn runtimeHandle cRuntime
 
       hClose llvmHandle
+      hClose runtimeHandle
 
       -- link the runtime with the assembly
-      callProcess "clang" ["-Wno-override-module", "-lm", llvm, "-o", "../" <> outfile]
+      callProcess "clang" ["-Wno-override-module", "-lm", llvm, runtime, "-o", "../" <> outfile]
+
