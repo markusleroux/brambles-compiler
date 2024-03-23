@@ -1,9 +1,10 @@
 {-# LANGUAGE RankNTypes #-}
+
 module Symbolizer.Unit where
 
-import Data.Generics.Multiplate
 import AST
 import Data.Foldable
+import Data.Generics.Multiplate
 import Symbolize
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -75,9 +76,7 @@ funcTests =
   where
     testFunc = testRename stmt
 
-
 testRename :: Foldable t => Projector (Plate Name) (t Name) -> t Name -> [Int] -> Assertion
 testRename p v expected = case runIncrementalSymbolize $ traverseMFor p renamePlate v of
     Left err -> error $ show err
     Right renamed -> toList renamed @?= show <$> expected
-

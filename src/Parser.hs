@@ -3,46 +3,47 @@ module Parser where
 import AST
 import Lexer (
     assignment,
+    bool,
+    boolType,
     braces,
     colon,
     commas,
     decl,
+    elseLex,
     float,
-    bool,
-    boolType,
     floatType,
     fn,
     identifier,
+    ifLex,
     integerType,
     lexer,
     natural,
     parens,
+    ret,
     returnArrow,
     semicolon,
     spaceConsumer,
-    ret,
     while,
-    ifLex,
-    elseLex
  )
 import Text.Parsec (
     eof,
     many,
+    optionMaybe,
     try,
     (<?>),
     (<|>),
-    optionMaybe
  )
 import qualified Text.Parsec.Expr as Expr
 import Text.Parsec.String (Parser)
 import qualified Text.Parsec.Token as Tok
 
 typeP :: Parser Type
-typeP = TInt <$ integerType 
-    <|> TFloat <$ floatType 
-    <|> TBool <$ boolType 
-    <|> (TCallable <$> parens (commas typeP) <*> (returnArrow *> typeP))
-    <?> "type"
+typeP =
+    TInt <$ integerType
+        <|> TFloat <$ floatType
+        <|> TBool <$ boolType
+        <|> (TCallable <$> parens (commas typeP) <*> (returnArrow *> typeP))
+        <?> "type"
 
 varP :: Parser (Var Name)
 varP = V <$> identifier
@@ -77,12 +78,13 @@ exprP = Expr.buildExpressionParser table factorP <?> "expression"
 statementP :: Parser (Stmt Name)
 statementP = stmtP <* semicolon
   where
-    stmtP = declP
-        <|> (SExpr <$> exprP)
-        <|> whileP
-        <|> returnP
-        <|> functionP
-        <?> "statement"
+    stmtP =
+        declP
+            <|> (SExpr <$> exprP)
+            <|> whileP
+            <|> returnP
+            <|> functionP
+            <?> "statement"
 
     declP = SDecl <$> (decl *> varP) <*> (colon *> typeP) <*> (assignment *> exprP)
     whileP = SWhile <$> (while *> exprP) <*> blockP
@@ -98,10 +100,8 @@ statementP = stmtP <* semicolon
       where
         varAndTypeP = (,) <$> (varP <* colon) <*> typeP
 
-
 blockP :: Parser (Block Name)
 blockP = braces $ Block <$> many statementP
 
 programP :: Parser (Prog Name)
 programP = Globals <$> (spaceConsumer *> many statementP <* eof)
-
