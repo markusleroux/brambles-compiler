@@ -2,17 +2,7 @@
 
 module Pretty where
 
-import AST (
-    BinOp (..),
-    Block (..),
-    Var (..),
-    Expr (..),
-    Func (..),
-    Program (..),
-    Stmt (..),
-    Type (..),
-    UnOp (..),
- )
+import AST
 import Data.Bool (bool)
 import Prettyprinter (
     Doc,
@@ -43,52 +33,62 @@ instance Pretty BinOp where
     pretty Sub = pretty "-"
     pretty Mult = pretty "*"
     pretty Div = pretty "/"
+    pretty Eq = pretty "=="
 
 instance Pretty Type where
     pretty TInt = pretty "int"
     pretty TFloat = pretty "float"
+    pretty TBool = pretty "bool"
     pretty (TCallable _ _) = undefined
 
 instance Pretty n => Pretty (Var n) where
     pretty (V v) = pretty v
 
 instance Pretty n => Pretty (Expr n) where
-    pretty (IntLit val) = pretty val
-    pretty (FloatLit val) = pretty val
-    pretty (Var var) = pretty var
-    pretty (UnOp op exp) = pretty op <> prettyGrouped exp
-    pretty (BinOp op expl expr) = prettyGrouped expl <+> pretty op <+> prettyGrouped expr
-    pretty (Call name exps) = pretty name <> align (tupled $ pretty <$> exps)
-    pretty (Assign name exp) = pretty name <+> equals <+> pretty exp
+    pretty (EIntLit val) = pretty val
+    pretty (EFloatLit val) = pretty val
+    pretty (EBoolLit val) = if val then pretty "true" else pretty "false"
+    pretty (EVar var) = pretty var
+    pretty (EUnOp{..}) = pretty uOp <> prettyGrouped unRHS
+    pretty (EBinOp{..}) = prettyGrouped binLHS <+> pretty bOp <+> prettyGrouped binRHS
+    pretty (ECall{..}) = pretty callFunc <> align (tupled $ pretty <$> callArgs)
+    pretty (EAssign{..}) = pretty assignVar <+> equals <+> pretty assignVal
     pretty (EBlock block) = pretty block
+    pretty (EIf{..}) = pretty "if" <+> pretty ifCond <> pretty "then" <+> pretty ifBody <> elseBody
+      where
+        elseBody = case ifElseMb of
+          Just b -> pretty " else" <+> pretty b
+          Nothing -> mempty
 
 prettyGrouped :: Pretty n => Expr n -> Doc ann
-prettyGrouped lit@(IntLit _) = pretty lit
-prettyGrouped lit@(FloatLit _) = pretty lit
-prettyGrouped var@(Var _) = pretty var
-prettyGrouped call@(Call _ _) = pretty call
+prettyGrouped lit@(EIntLit _) = pretty lit
+prettyGrouped lit@(EFloatLit _) = pretty lit
+prettyGrouped var@(EVar _) = pretty var
+prettyGrouped call@(ECall _ _) = pretty call
 prettyGrouped p = pretty "(" <> pretty p <> pretty ")"
 
 instance Pretty n => Pretty (Stmt n) where
-    pretty (Expr exp) = pretty exp <> semi
-    pretty Decl{..} = pretty "let" <+> pretty sName <> colon <+> pretty sType <+> equals <+> pretty sVal <> semi
-
-instance Pretty n => Pretty (Block n) where
-    pretty (Block stmts) = braces . newlineIf (null stmts) . vsep $ pretty <$> stmts
-      where
-        newlineIf = bool (enclose line line) id
-
-instance Pretty n => Pretty (Func n) where
-    pretty Func{..} =
+    pretty (SExpr exp) = pretty exp <> semi
+    pretty SDecl{..} = pretty "let" <+> pretty declName <> colon <+> pretty declT <+> equals <+> pretty declV <> semi
+    pretty SWhile{..} = pretty "while" <+> pretty whileCond <+> pretty whileBody <> semi
+    pretty (SReturn exp) = pretty "return" <+> pretty exp <> semi
+    pretty SFunc{..} =
         pretty "fn"
             <+> pretty fName
                 <> align (tupled prettyParams)
             <+> pretty "->"
             <+> pretty (returnT fType) -- why does this compile?
             <+> pretty fBody
+            <> semi
       where
         prettyParams = zipWith prettyParamAndType fParams $ paramT fType
         prettyParamAndType a t = pretty a <> colon <+> pretty t
 
-instance Pretty n => Pretty (Program n) where
-    pretty Program{..} = vsep $ (pretty <$> globals) <> ((<> semi) . pretty <$> funcs)
+instance Pretty n => Pretty (Block n) where
+    pretty (Block stmts) = braces . newlineIf (null stmts) . vsep $ pretty <$> stmts
+      where
+        newlineIf = bool (enclose line line) id
+
+instance Pretty n => Pretty (Prog n) where
+    pretty (Globals g) = vsep (pretty <$> g)
+

@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, DeriveAnyClass, DerivingStrategies, DerivingVia #-}
+{-# LANGUAGE ScopedTypeVariables, DeriveAnyClass, DerivingVia #-}
 module Symbolize where
 
 import Data.Generics.Multiplate
@@ -53,18 +53,17 @@ class (ThrowsSymbolizeException m, MonadScoping m) => MonadSymbolize m sym where
     getSym name = getSymMb name >>= maybe (throwUndefined name) return
 
 
-scopingPlate :: forall m. MonadScoping m => Plate Name m -> Plate Name m
-scopingPlate p = undefined
-
 -- TODO: How to change type of symbol?
 --       MonadSymbolize m Name, then map to int?
 --       OR Constant (Block sym)
 renamePlate :: forall m. MonadSymbolize m Name => Plate Name m
-renamePlate = (mkPlate (\p -> p renameRecurse)) { func = renameFunc, stmt = renameStmt , expr = renameExpr, var = mapM getSym }
+renamePlate = (mkPlate (\p -> p renameRecurse)) { stmt = renameStmt , expr = renameExpr, var = mapM getSym }
   where
     renameRecurse = multiplate renamePlate
 
-    renameFunc Func{..} = do
+
+    renameStmt (SDecl n t e) = SDecl <$> mapM createSym n <*> typ renameRecurse t <*> expr renameRecurse e
+    renameStmt SFunc{..} = do
       u <- mapM createSym fName -- function symbol will be available inside function (recursion)
 
       (args, body) <- withScope $ do
@@ -72,9 +71,7 @@ renamePlate = (mkPlate (\p -> p renameRecurse)) { func = renameFunc, stmt = rena
           body <- block renameRecurse fBody
           return (args, body)
 
-      return $ Func u args fType body
-
-    renameStmt (Decl n t e) = Decl <$> mapM createSym n <*> type_ renameRecurse t <*> expr renameRecurse e
+      return $ SFunc u args fType body
     renameStmt s = stmt renameRecurse s
 
     renameExpr (EBlock b) = withScope (EBlock <$> block renameRecurse b)
