@@ -39,7 +39,7 @@ instance Pretty Type where
     pretty TInt = pretty "int"
     pretty TFloat = pretty "float"
     pretty TBool = pretty "bool"
-    pretty (TCallable _ _) = undefined
+    pretty TCallable{..} = align (tupled $ pretty <$> paramT) <+> pretty "->" <+> pretty returnT
 
 instance Pretty n => Pretty (Var n) where
     pretty (V v) = pretty v
@@ -49,12 +49,12 @@ instance Pretty n => Pretty (Expr n) where
     pretty (EFloatLit val) = pretty val
     pretty (EBoolLit val) = if val then pretty "true" else pretty "false"
     pretty (EVar var) = pretty var
-    pretty (EUnOp{..}) = pretty uOp <> prettyGrouped unRHS
-    pretty (EBinOp{..}) = prettyGrouped binLHS <+> pretty bOp <+> prettyGrouped binRHS
-    pretty (ECall{..}) = pretty callFunc <> align (tupled $ pretty <$> callArgs)
-    pretty (EAssign{..}) = pretty assignVar <+> equals <+> pretty assignVal
     pretty (EBlock block) = pretty block
-    pretty (EIf{..}) = pretty "if" <+> pretty ifCond <> pretty "then" <+> pretty ifBody <> elseBody
+    pretty EUnOp{..} = pretty uOp <> prettyGrouped unRHS
+    pretty EBinOp{..} = prettyGrouped binLHS <+> pretty bOp <+> prettyGrouped binRHS
+    pretty ECall{..} = pretty callFunc <> align (tupled $ pretty <$> callArgs)
+    pretty EAssign{..} = pretty assignVar <+> equals <+> pretty assignVal
+    pretty EIf{..} = pretty "if" <+> pretty ifCond <> pretty "then" <+> pretty ifBody <> elseBody
       where
         elseBody = case ifElseMb of
           Just b -> pretty " else" <+> pretty b

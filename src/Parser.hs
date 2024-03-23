@@ -38,7 +38,11 @@ import Text.Parsec.String (Parser)
 import qualified Text.Parsec.Token as Tok
 
 typeP :: Parser Type
-typeP = TInt <$ integerType <|> TFloat <$ floatType <|> TBool <$ boolType <?> "type"
+typeP = TInt <$ integerType 
+    <|> TFloat <$ floatType 
+    <|> TBool <$ boolType 
+    <|> (TCallable <$> parens (commas typeP) <*> (returnArrow *> typeP))
+    <?> "type"
 
 varP :: Parser (Var Name)
 varP = V <$> identifier
