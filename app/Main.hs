@@ -12,15 +12,52 @@ import qualified Data.Text.Lazy.IO as TIO
 import LLVM
 import Options.Applicative
 
-data Options = Options
-  { ir :: Bool
+data REPLOptions = REPLOptions
+  { ir :: !Bool
   , compile :: Maybe FilePath
   }
 
-commandLine :: Parser Options
-commandLine = Options
-  <$> switch (long "ir" <> short 'i' <> help "Print the IR to stdout")
-  <*> optional ( strOption (long "output" <> short 'o' <> help "Compile output to file") )
+main :: IO () -- REPL
+main = getREPLOptions >>= repl
+
+getREPLOptions :: IO REPLOptions
+getREPLOptions = execParser $ 
+  info (helper <*> commandLine) fullDesc
+
+repl :: REPLOptions -> IO () -- Execute
+repl options = 
+  let
+    printers = fromOptions options
+    run = runPrinters printers
+
+    parseAndRun line = case parse exprP "<stdin>" line of
+        Left err -> print err
+        Right prog -> run prog
+
+    promptAndRun = getInputLine "womp> " >>= \case
+      Nothing -> return ()
+      Just input -> liftIO (parseAndRun input) >> promptAndRun
+  in
+    runInputT defaultSettings promptAndRun
+
+
+commandLine :: Parser REPLOptions
+commandLine = REPLOptions
+  <$> printIRParser
+  <*> optional doCompileParser
+
+printIRParser :: Parser Bool
+printIRParser = switch 
+   $ long "ir" 
+  <> short 'i' 
+  <> help "Print the IR to stdout"
+
+doCompileParser :: Parser FilePath
+doCompileParser = strOption
+   $ long "output" 
+  <> short 'o' 
+  <> help "Compile output to file"
+
 
 data Printers = Printers
   { astPrinter :: Maybe (AST.Expr AST.Name -> IO ())
@@ -28,8 +65,8 @@ data Printers = Printers
   , compilePrinter :: Maybe (AST.Expr AST.Name -> IO ())
   }
 
-fromCommandLine :: Options -> Printers
-fromCommandLine Options{..} = Printers
+fromOptions :: REPLOptions -> Printers
+fromOptions REPLOptions{..} = Printers
   { astPrinter = Just print
   , irPrinter = if ir then Just (TIO.putStrLn . ppllvm . toLLVM) else Nothing
   , compilePrinter = flip (LLVM.compile . toLLVM) <$> compile
@@ -42,18 +79,3 @@ runPrinters Printers{..} e = do
   sequence $ compilePrinter <*> pure e
   pure ()
 
-
-doProcessing :: Printers -> String -> IO ()
-doProcessing p line = do
-    case parse exprP "<stdin>" line of
-        Left err -> print err
-        Right prog -> runPrinters p prog
-
-main :: IO () -- REPL
-main = do
-  options <- execParser $ info commandLine fullDesc
-  runInputT defaultSettings $ loop (fromCommandLine options)
-    where
-      loop p = getInputLine "womp> " >>= \case
-        Nothing -> return ()
-        Just input -> liftIO (doProcessing p input) >> loop p
