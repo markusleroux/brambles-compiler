@@ -33,10 +33,12 @@ instance Pretty BinOp where
     pretty Sub = pretty "-"
     pretty Mult = pretty "*"
     pretty Div = pretty "/"
+    pretty Eq = pretty "=="
 
 instance Pretty Type where
     pretty TInt = pretty "int"
     pretty TFloat = pretty "float"
+    pretty TBool = pretty "bool"
     pretty (TCallable _ _) = undefined
 
 instance Pretty n => Pretty (Var n) where
@@ -45,6 +47,7 @@ instance Pretty n => Pretty (Var n) where
 instance Pretty n => Pretty (Expr n) where
     pretty (EIntLit val) = pretty val
     pretty (EFloatLit val) = pretty val
+    pretty (EBoolLit val) = if val then pretty "true" else pretty "false"
     pretty (EVar var) = pretty var
     pretty (EUnOp{..}) = pretty uOp <> prettyGrouped unRHS
     pretty (EBinOp{..}) = prettyGrouped binLHS <+> pretty bOp <+> prettyGrouped binRHS
@@ -87,4 +90,5 @@ instance Pretty n => Pretty (Block n) where
         newlineIf = bool (enclose line line) id
 
 instance Pretty n => Pretty (Prog n) where
-    pretty (Globals g) = vsep $ (pretty <$> g)
+    pretty (Globals g) = vsep (pretty <$> g)
+

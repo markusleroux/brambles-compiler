@@ -14,11 +14,13 @@ data BinOp
     | Sub
     | Mult
     | Div
+    | Eq
     deriving (Eq, Ord, Show)
 
 data Type
     = TInt
     | TFloat
+    | TBool
     | TCallable {paramT :: [Type], returnT :: Type}
     deriving (Eq, Ord, Show)
 
@@ -30,6 +32,7 @@ newtype Var n = V n
 data Expr n
     = EIntLit Integer
     | EFloatLit Double
+    | EBoolLit Bool
     | EVar (Var n)
     | EUnOp { uOp :: UnOp, unRHS :: Expr n }
     | EBinOp { bOp :: BinOp, binLHS :: Expr n, binRHS :: Expr n }

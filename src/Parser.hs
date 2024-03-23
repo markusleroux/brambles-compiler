@@ -8,6 +8,8 @@ import Lexer (
     commas,
     decl,
     float,
+    bool,
+    boolType,
     floatType,
     fn,
     identifier,
@@ -36,7 +38,7 @@ import Text.Parsec.String (Parser)
 import qualified Text.Parsec.Token as Tok
 
 typeP :: Parser Type
-typeP = TInt <$ integerType <|> TFloat <$ floatType <?> "type"
+typeP = TInt <$ integerType <|> TFloat <$ floatType <|> TBool <$ boolType <?> "type"
 
 varP :: Parser (Var Name)
 varP = V <$> identifier
@@ -47,6 +49,7 @@ exprP = Expr.buildExpressionParser table factorP <?> "expression"
     factorP =
         try (EFloatLit <$> float)
             <|> try (EIntLit <$> natural)
+            <|> try (EBoolLit <$> bool)
             <|> try (ECall <$> varP <*> parens (commas exprP))
             <|> try (EAssign <$> (varP <* assignment) <*> exprP)
             <|> try (EVar <$> varP)
@@ -58,6 +61,7 @@ exprP = Expr.buildExpressionParser table factorP <?> "expression"
         [ [unaryOp "-" Neg, unaryOp "+" Pos]
         , [binaryOp "*" Mult Expr.AssocLeft, binaryOp "/" Div Expr.AssocLeft]
         , [binaryOp "+" Add Expr.AssocLeft, binaryOp "-" Sub Expr.AssocLeft]
+        , [binaryOp "==" Eq Expr.AssocLeft]
         ]
       where
         unaryOp name op = Expr.Prefix $ EUnOp op <$ Tok.reservedOp lexer name

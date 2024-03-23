@@ -22,10 +22,10 @@ genUnOp :: Gen AST.UnOp
 genUnOp = Gen.element [AST.Neg, AST.Pos]
 
 genBinOp :: Gen AST.BinOp
-genBinOp = Gen.element [AST.Add, AST.Sub, AST.Mult, AST.Div]
+genBinOp = Gen.element [AST.Add, AST.Sub, AST.Mult, AST.Div, AST.Eq]
 
 genType :: Gen AST.Type
-genType = Gen.element [AST.TInt, AST.TFloat]
+genType = Gen.element [AST.TInt, AST.TFloat, AST.TBool]
 
 
 -- TODO: these should be generic over n
@@ -43,6 +43,7 @@ genExpr =
         Gen.choice
         [ AST.EIntLit <$> Gen.integral_ intRange
         , AST.EFloatLit <$> Gen.double floatRange
+        , AST.EBoolLit <$> Gen.bool
         , AST.EVar <$> genVar
         ]
         [ AST.EUnOp <$> genUnOp <*> genExpr

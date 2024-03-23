@@ -2,6 +2,7 @@
 
 module Lexer where
 
+import Data.Functor (($>))
 import Text.Parsec (alphaNum, char, letter, oneOf, (<|>))
 import qualified Text.Parsec.Token as Tok
 
@@ -22,8 +23,8 @@ lexer = Tok.makeTokenParser languageDef
               Tok.opStart = opParser
             , Tok.opLetter = opParser
             , -- Reserved
-              Tok.reservedNames = ["fn", "int", "float", "let", "while", "return", "if", "else"]
-            , Tok.reservedOpNames = ["+", "-", "*", "/", ";", "->", "=", ":"]
+              Tok.reservedNames = ["int", "float", "bool", "true", "false", "fn", "let", "while", "return", "if", "else"]
+            , Tok.reservedOpNames = ["+", "-", "*", "/", ";", "->", "=", ":", "=="]
             , -- Other
               Tok.caseSensitive = True
             }
@@ -34,11 +35,15 @@ integerType = Tok.reserved lexer "int"
 
 floatType = Tok.reserved lexer "float"
 
+boolType = Tok.reserved lexer "bool"
+
 identifier = Tok.identifier lexer
 
 natural = Tok.integer lexer -- literals are always parsed as positive, c.f. UnOp
 
 float = Tok.float lexer
+
+bool = (Tok.reserved lexer "true" $> True) <|> (Tok.reserved lexer "false" $> False)
 
 parens = Tok.parens lexer
 
@@ -55,6 +60,8 @@ fn = Tok.reserved lexer "fn"
 returnArrow = Tok.reservedOp lexer "->"
 
 assignment = Tok.reservedOp lexer "="
+
+equality = Tok.reservedOp lexer "=="
 
 decl = Tok.reserved lexer "let"
 
