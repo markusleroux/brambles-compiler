@@ -2,7 +2,7 @@ module Parser.Prop where
 
 import qualified AST
 import Hedgehog
-import Parser (blockP, exprP, statementP, programP, typeP)
+import Parser (blockP, exprP, programP, statementP, typeP)
 import Parser.Gen
 import Pretty
 import Prettyprinter

@@ -32,12 +32,15 @@ typeTests =
         , testCase "Callable type (no-arg)" $ testTypeParser "() -> bool" @?= TCallable [] TBool
         , testCase "Callable type (one-arg)" $ testTypeParser "(int) -> bool" @?= TCallable [TInt] TBool
         , testCase "Callable type (multi-arg)" $ testTypeParser "(int,int) -> bool" @?= TCallable [TInt, TInt] TBool
-        , testCase "Callable type (higher-order-in)" $ testTypeParser "((int) -> bool) -> bool" 
-            @?= TCallable [TCallable [TInt] TBool] TBool
-        , testCase "Callable type (multi-higher-order-in)" $ testTypeParser "((int) -> bool, (int) -> int) -> bool" 
-            @?= TCallable [TCallable [TInt] TBool, TCallable [TInt] TInt] TBool
-        , testCase "Callable type (higher-order-out)" $ testTypeParser "(int) -> (int) -> bool" 
-            @?= TCallable [TInt] (TCallable [TInt] TBool)
+        , testCase "Callable type (higher-order-in)" $
+            testTypeParser "((int) -> bool) -> bool"
+                @?= TCallable [TCallable [TInt] TBool] TBool
+        , testCase "Callable type (multi-higher-order-in)" $
+            testTypeParser "((int) -> bool, (int) -> int) -> bool"
+                @?= TCallable [TCallable [TInt] TBool, TCallable [TInt] TInt] TBool
+        , testCase "Callable type (higher-order-out)" $
+            testTypeParser "(int) -> (int) -> bool"
+                @?= TCallable [TInt] (TCallable [TInt] TBool)
         ]
   where
     testTypeParser = testParser typeP
@@ -48,15 +51,18 @@ exprTests =
         "Basic expression parsing"
         [ testCase "Integer literal" $ testSExprParser "3" @?= EIntLit 3
         , testCase "Float literal" $ testSExprParser "3.0" @?= EFloatLit 3.0
-        , testCase "Call" $ testSExprParser "function(3, 4)" 
-            @?= ECall (V "function") [EIntLit 3, EIntLit 4]
-        , testCase "Call" $ testSExprParser "aw(ch(-1.0, 0.0) - 2)" 
-            @?= ECall (V "aw") [EBinOp Sub (ECall (V "ch") [EUnOp Neg $ EFloatLit 1.0, EFloatLit 0.0]) (EIntLit 2)]
+        , testCase "Call" $
+            testSExprParser "function(3, 4)"
+                @?= ECall (V "function") [EIntLit 3, EIntLit 4]
+        , testCase "Call" $
+            testSExprParser "aw(ch(-1.0, 0.0) - 2)"
+                @?= ECall (V "aw") [EBinOp Sub (ECall (V "ch") [EUnOp Neg $ EFloatLit 1.0, EFloatLit 0.0]) (EIntLit 2)]
         , testCase "Variable" $ testSExprParser "abc" @?= EVar (V "abc")
         , -- Binary operators
           testCase "Addition" $ testSExprParser "3 + 2" @?= EBinOp Add (EIntLit 3) (EIntLit 2)
-        , testCase "Addition (braces)" $ testSExprParser "3 + (2 - 5)" 
-            @?= EBinOp Add (EIntLit 3) (EBinOp Sub (EIntLit 2) (EIntLit 5))
+        , testCase "Addition (braces)" $
+            testSExprParser "3 + (2 - 5)"
+                @?= EBinOp Add (EIntLit 3) (EBinOp Sub (EIntLit 2) (EIntLit 5))
         , testCase "Subtraction" $ testSExprParser "3 - 2" @?= EBinOp Sub (EIntLit 3) (EIntLit 2)
         , testCase "Multiplication" $ testSExprParser "3 * 2" @?= EBinOp Mult (EIntLit 3) (EIntLit 2)
         , testCase "Division" $ testSExprParser "3 / 2" @?= EBinOp Div (EIntLit 3) (EIntLit 2)
@@ -138,15 +144,15 @@ programTests =
         [ testCase "Empty" $ testProgramParser "" @?= Globals []
         , testCase "EAssignment and function" $
             testProgramParser "let x: int = 3; fn test(y: float) -> int { z = 5; };"
-                @?= Globals 
-                  [ SDecl (V "x") TInt (EIntLit 3)
-                  , SFunc
-                      { fName = V "test"
-                      , fParams = [V "y"]
-                      , fType = TCallable [TFloat] TInt
-                      , fBody = Block [SExpr $ EAssign (V "z") (EIntLit 5)]
-                      }
-                  ]
+                @?= Globals
+                    [ SDecl (V "x") TInt (EIntLit 3)
+                    , SFunc
+                        { fName = V "test"
+                        , fParams = [V "y"]
+                        , fType = TCallable [TFloat] TInt
+                        , fBody = Block [SExpr $ EAssign (V "z") (EIntLit 5)]
+                        }
+                    ]
         ]
   where
     testProgramParser = testParser programP

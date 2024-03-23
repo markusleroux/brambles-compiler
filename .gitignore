@@ -1,0 +1,4 @@
+dist-*
+*.notes
+*.local
+a.out

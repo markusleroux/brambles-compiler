@@ -25,12 +25,11 @@ genBinOp :: Gen AST.BinOp
 genBinOp = Gen.element [AST.Add, AST.Sub, AST.Mult, AST.Div, AST.Eq]
 
 genType :: Gen AST.Type
-genType = 
-  Gen.recursive 
-    Gen.choice 
-      (Gen.constant <$> [ AST.TInt , AST.TFloat , AST.TBool ])
-      [ AST.TCallable <$> Gen.list paramRange genType <*> genType ]
-
+genType =
+    Gen.recursive
+        Gen.choice
+        (Gen.constant <$> [AST.TInt, AST.TFloat, AST.TBool])
+        [AST.TCallable <$> Gen.list paramRange genType <*> genType]
 
 -- TODO: these should be generic over n
 
@@ -59,13 +58,14 @@ genExpr =
         ]
 
 genStmt :: Gen (AST.Stmt AST.Name)
-genStmt = Gen.frequency
-    [ (10, AST.SExpr <$> genExpr)
-    , (10, AST.SDecl <$> genVar <*> genType <*> genExpr)
-    , (10, AST.SReturn <$> genExpr)
-    , (3, genFunction)
-    -- TODO: while
-    ]
+genStmt =
+    Gen.frequency
+        [ (10, AST.SExpr <$> genExpr)
+        , (10, AST.SDecl <$> genVar <*> genType <*> genExpr)
+        , (10, AST.SReturn <$> genExpr)
+        , (3, genFunction)
+        -- TODO: while
+        ]
   where
     genFunction :: Gen (AST.Stmt AST.Name)
     genFunction = do

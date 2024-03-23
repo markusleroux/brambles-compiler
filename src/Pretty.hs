@@ -57,8 +57,8 @@ instance Pretty n => Pretty (Expr n) where
     pretty EIf{..} = pretty "if" <+> pretty ifCond <> pretty "then" <+> pretty ifBody <> elseBody
       where
         elseBody = case ifElseMb of
-          Just b -> pretty " else" <+> pretty b
-          Nothing -> mempty
+            Just b -> pretty " else" <+> pretty b
+            Nothing -> mempty
 
 prettyGrouped :: Pretty n => Expr n -> Doc ann
 prettyGrouped lit@(EIntLit _) = pretty lit
@@ -79,7 +79,7 @@ instance Pretty n => Pretty (Stmt n) where
             <+> pretty "->"
             <+> pretty (returnT fType) -- why does this compile?
             <+> pretty fBody
-            <> semi
+                <> semi
       where
         prettyParams = zipWith prettyParamAndType fParams $ paramT fType
         prettyParamAndType a t = pretty a <> colon <+> pretty t
@@ -91,4 +91,3 @@ instance Pretty n => Pretty (Block n) where
 
 instance Pretty n => Pretty (Prog n) where
     pretty (Globals g) = vsep (pretty <$> g)
-
