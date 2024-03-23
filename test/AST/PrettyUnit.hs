@@ -41,8 +41,8 @@ fnTests :: TestTree
 fnTests =
     testGroup
         "Basic function printing"
-        [ testCase "Simple function" $ testFnPrinter "fn name() -> int {}"
-        , testCase "One argument function" $ testFnPrinter "fn name(x: int) -> int {\nlet x: float = 4;\n}" -- TODO: one line with spaces
+        [ testCase "Simple function" $ testFnPrinter "fn name() -> int {};"
+        , testCase "One argument function" $ testFnPrinter "fn name(x: int) -> int {\nlet x: float = 4;\n};" -- TODO: one line with spaces
         ]
   where
-    testFnPrinter = testPrinter functionP
+    testFnPrinter = testPrinter statementP
