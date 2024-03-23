@@ -9,6 +9,16 @@ import qualified LLVM.IRBuilder.Constant as LLVM
 import qualified LLVM.IRBuilder.Instruction as LLVM
 import qualified LLVM.IRBuilder.Module as LLVM
 import qualified LLVM.IRBuilder.Monad as LLVM
+import LLVM.Pretty (ppllvm)
+
+import Control.Exception (bracket)
+import qualified Data.Text.IO as T
+
+import Data.String.Conversions
+import System.IO
+import System.Directory (removePathForcibly, withCurrentDirectory)
+import System.Posix.Temp
+import System.Process
 
 -- import Data.Bool (bool)
 import Control.Monad (join)
@@ -32,4 +42,20 @@ exprToLLVM _ = undefined
 
 toLLVM :: AST.Expr n -> LLVM.Module
 toLLVM expr = LLVM.buildModule "test" $ LLVM.function "main" [] LLVM.i32 $ \_ -> (exprToLLVM expr >> (LLVM.ret $ LLVM.int32 0))
-  
+
+
+-- https://github.com/danieljharvey/llvm-calc/blob/trunk/llvm-calc/src/Calc/Compile/RunLLVM.hs
+compile :: LLVM.Module -> FilePath -> IO ()
+compile llvmModule outfile =
+  bracket (mkdtemp "build") removePathForcibly $ \buildDir ->
+    withCurrentDirectory buildDir $ do
+      (llvm, llvmHandle) <- mkstemps "output" ".ll"
+
+      let moduleText = cs (ppllvm llvmModule)
+
+      T.hPutStrLn llvmHandle moduleText  -- write the llvmmodule a file
+
+      hClose llvmHandle
+
+      -- link the runtime with the assembly
+      callProcess "clang" ["-Wno-override-module", "-lm", llvm, "-o", "../" <> outfile]
