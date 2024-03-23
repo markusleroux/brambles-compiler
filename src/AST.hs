@@ -1,7 +1,8 @@
 {-# LANGUAGE InstanceSigs, ScopedTypeVariables #-}
 module AST where
 
-import Data.Generics.Multiplate
+import Data.Generics.Multiplate (Multiplate(..))
+
 
 data UnOp
     = Neg
@@ -27,79 +28,73 @@ newtype Var n = V n
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 data Expr n
-    = IntLit Integer
-    | FloatLit Double
-    | Var (Var n)
-    | UnOp UnOp (Expr n)
-    | BinOp BinOp (Expr n) (Expr n)
-    | Call (Var n) [Expr n]
-    | Assign (Var n) (Expr n)
+    = EIntLit Integer
+    | EFloatLit Double
+    | EVar (Var n)
+    | EUnOp { uOp :: UnOp, unRHS :: Expr n }
+    | EBinOp { bOp :: BinOp, binLHS :: Expr n, binRHS :: Expr n }
+    | ECall { callFunc :: Var n, callArgs :: [Expr n] }
+    | EAssign { assignVar :: Var n, assignVal :: Expr n }
     | EBlock (Block n)
+    | EIf { ifCond :: Expr n, ifBody :: Block n, ifElseMb :: Maybe (Block n) }  -- TODO
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 data Stmt n
-    = Expr (Expr n)
-    | Decl {sName :: Var n, sType :: Type, sVal :: Expr n}
+    = SExpr (Expr n)
+    | SDecl { declName :: Var n, declT :: Type, declV :: Expr n }
+    | SWhile { whileCond :: Expr n, whileBody :: Block n }  -- TODO
+    | SReturn (Expr n)  -- TODO
+    | SFunc { fName :: Var n , fParams :: [Var n] , fType :: Type , fBody :: Block n }
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
-newtype Block n = Block {unBlock :: [Stmt n]}
+newtype Block n = Block [Stmt n]
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
-data Func n = Func
-    { fName :: Var n
-    , fParams :: [Var n]
-    , fType :: Type
-    , fBody :: Block n
-    }
-    deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
-
-data Program n = Program
-    { globals :: [Stmt n]
-    , funcs :: [Func n]
-    }
+newtype Prog n = Globals [Stmt n]
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 
-data Plate n m f = Plate
-    { prog :: Program n -> f (Program n)
-    , func :: Func n -> f (Func n)
+
+data Plate n f = Plate
+    { prog  :: Prog n  -> f (Prog n)
     , block :: Block n -> f (Block n)
-    , stmt :: Stmt n -> f (Stmt n)
-    , expr :: Expr n -> f (Expr n)
-    , type_ :: Type -> f Type
-    , binOp :: BinOp -> f BinOp
-    , unOp :: UnOp -> f UnOp
-    , var :: Var n -> f (Var n)
+    , stmt  :: Stmt n  -> f (Stmt n)
+    , expr  :: Expr n  -> f (Expr n)
+    , var   :: Var n   -> f (Var n)
+    , typ   :: Type    -> f Type
+    , binOp :: BinOp   -> f BinOp
+    , unOp  :: UnOp    -> f UnOp
     }
 
 instance Multiplate (Plate n) where
   multiplate :: forall f. Applicative f => Plate n f -> Plate n f
-  multiplate child = Plate buildProg buildFunc buildBlock buildStmt buildExpr buildType buildBinOp buildUnOp buildVar
+  multiplate child = Plate buildProg buildBlock buildStmt buildExpr buildVar buildType buildBinOp buildUnOp
     where
-      buildProg :: Program n -> f (Program n)
-      buildProg (Program g f) = Program <$> (stmt child `traverse` g) <*> (func child `traverse` f)
-
-      buildFunc :: Func n -> f (Func n)
-      buildFunc (Func{..}) = Func <$> var child fName <*> (var child `traverse` fParams) <*> type_ child fType <*> block child fBody
+      buildProg :: Prog n -> f (Prog n)
+      buildProg (Globals ss) = Globals <$> (stmt child `traverse` ss)
 
       buildBlock :: Block n -> f (Block n)
       buildBlock (Block stmts) = Block <$> (stmt child `traverse` stmts)
 
       buildStmt :: Stmt n -> f (Stmt n)
-      buildStmt (Expr e) = Expr <$> expr child e
-      buildStmt (Decl{..}) = Decl <$> var child sName <*> type_ child sType <*> expr child sVal
+      buildStmt (SExpr e)    = SExpr <$> expr child e
+      buildStmt (SDecl{..})  = SDecl <$> var child declName <*> typ child declT <*> expr child declV
+      buildStmt (SWhile{..}) = SWhile <$> expr child whileCond <*> block child whileBody
+      buildStmt (SReturn e)  = SReturn <$> expr child e
+      buildStmt (SFunc{..})  = SFunc <$> var child fName <*> (var child `traverse` fParams) <*> typ child fType <*> block child fBody
 
       buildExpr :: Expr n -> f (Expr n)
-      buildExpr (UnOp op e) = UnOp op <$> expr child e
-      buildExpr (BinOp op e0 e1) = BinOp op <$> expr child e0 <*> expr child e1
-      buildExpr (Call n es) = Call <$> var child n <*> (expr child `traverse` es)
-      buildExpr (Assign n e) = Assign <$> var child n <*> expr child e
-      buildExpr (EBlock b) = EBlock <$> block child b
-      buildExpr (Var v) = Var <$> var child v
-      buildExpr v = pure v
+      buildExpr (EUnOp{..})   = EUnOp uOp <$> expr child unRHS
+      buildExpr (EBinOp{..})  = EBinOp bOp <$> expr child binLHS <*> expr child binRHS
+      buildExpr (EVar v)      = EVar <$> var child v
+      buildExpr (ECall{..})   = ECall <$> var child callFunc <*> (expr child `traverse` callArgs)
+      buildExpr (EAssign{..}) = EAssign <$> var child assignVar <*> expr child assignVal
+      buildExpr (EBlock b)    = EBlock <$> block child b
+      buildExpr (EIf{..})     = EIf <$> expr child ifCond <*> block child ifBody <*> (block child `traverse` ifElseMb)
+      buildExpr v             = pure v
 
       buildType :: Type -> f Type
-      buildType (TCallable{..}) = TCallable <$> (type_ child `traverse` paramT) <*> type_ child returnT
+      buildType (TCallable{..}) = TCallable <$> (typ child `traverse` paramT) <*> typ child returnT
       buildType t = pure t
 
       buildBinOp :: BinOp -> f BinOp
@@ -112,13 +107,12 @@ instance Multiplate (Plate n) where
       buildVar = pure
 
   mkPlate build = Plate (build prog) 
-                        (build func) 
                         (build block) 
                         (build stmt) 
                         (build expr) 
-                        (build type_) 
+                        (build var)
+                        (build typ) 
                         (build binOp) 
                         (build unOp) 
-                        (build var)
 
 

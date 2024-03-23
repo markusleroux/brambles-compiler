@@ -41,34 +41,37 @@ genExpr :: Gen (AST.Expr AST.Name)
 genExpr =
     Gen.recursive
         Gen.choice
-        [ AST.IntLit <$> Gen.integral_ intRange
-        , AST.FloatLit <$> Gen.double floatRange
-        , AST.Var <$> genVar
+        [ AST.EIntLit <$> Gen.integral_ intRange
+        , AST.EFloatLit <$> Gen.double floatRange
+        , AST.EVar <$> genVar
         ]
-        [ AST.UnOp <$> genUnOp <*> genExpr
-        , AST.BinOp <$> genBinOp <*> genExpr <*> genExpr
-        , AST.Call <$> genVar <*> Gen.list paramRange genExpr
-        , AST.Assign <$> genVar <*> genExpr
+        [ AST.EUnOp <$> genUnOp <*> genExpr
+        , AST.EBinOp <$> genBinOp <*> genExpr <*> genExpr
+        , AST.ECall <$> genVar <*> Gen.list paramRange genExpr
+        , AST.EAssign <$> genVar <*> genExpr
         , AST.EBlock <$> genBlock
+        -- TODO: if
         ]
 
 genStmt :: Gen (AST.Stmt AST.Name)
-genStmt = Gen.recursive Gen.choice []
-    [ AST.Expr <$> genExpr
-    , AST.Decl <$> genVar <*> genType <*> genExpr
+genStmt = Gen.frequency
+    [ (10, AST.SExpr <$> genExpr)
+    , (10, AST.SDecl <$> genVar <*> genType <*> genExpr)
+    , (10, AST.SReturn <$> genExpr)
+    , (3, genFunction)
+    -- TODO: while
     ]
+  where
+    genFunction :: Gen (AST.Stmt AST.Name)
+    genFunction = do
+        (params, paramTs) <- unzip <$> Gen.list paramRange ((,) <$> genVar <*> genType)
+        let genCallable = AST.TCallable paramTs <$> genType
+        AST.SFunc <$> genVar <*> pure params <*> genCallable <*> genBlock
 
 genBlock :: Gen (AST.Block AST.Name)
 genBlock = AST.Block <$> Gen.list blockLen genStmt
 
-genFunction :: Gen (AST.Func AST.Name)
-genFunction = do
-    (params, paramTs) <- unzip <$> Gen.list paramRange ((,) <$> genVar <*> genType)
-    let genCallable = AST.TCallable paramTs <$> genType
-    AST.Func <$> genVar <*> pure params <*> genCallable <*> genBlock
-
-genProgram :: Gen (AST.Program AST.Name)
-genProgram = AST.Program <$> genStatements <*> genFunctions
+genProgram :: Gen (AST.Prog AST.Name)
+genProgram = AST.Globals <$> genStatements
   where
     genStatements = Gen.list progStmtRange genStmt
-    genFunctions = Gen.list progFuncRange genFunction

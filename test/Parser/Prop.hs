@@ -2,7 +2,7 @@ module Parser.Prop where
 
 import qualified AST
 import Hedgehog
-import Parser (blockP, exprP, functionP, programP, typeP)
+import Parser (blockP, exprP, statementP, programP, typeP)
 import Parser.Gen
 import Pretty
 import Prettyprinter
@@ -27,6 +27,6 @@ parsingQuickTests =
         [ testProperty "typeP" $ prop_prettyParserInverse typeP genType
         , testProperty "exprP" $ prop_prettyParserInverse exprP genExpr
         , testProperty "blockP" $ prop_prettyParserInverse blockP genBlock
-        , testProperty "functionP" $ prop_prettyParserInverse functionP genFunction
+        , testProperty "statementP" $ prop_prettyParserInverse statementP genStmt
         , testProperty "programP" $ prop_prettyParserInverse programP genProgram
         ]

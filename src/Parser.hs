@@ -1,21 +1,6 @@
 module Parser where
 
-import AST (
-    BinOp (..),
-    Block (..),
-    Var (..),
-    Expr (..),
-    Func (..),
-    Name,
-    Program (..),
-    Stmt (..),
-    Type (..),
-    UnOp (..),
- )
-import Data.Either (
-    lefts,
-    rights,
- )
+import AST
 import Lexer (
     assignment,
     braces,
@@ -33,6 +18,10 @@ import Lexer (
     returnArrow,
     semicolon,
     spaceConsumer,
+    ret,
+    while,
+    ifLex,
+    elseLex
  )
 import Text.Parsec (
     eof,
@@ -40,6 +29,7 @@ import Text.Parsec (
     try,
     (<?>),
     (<|>),
+    optionMaybe
  )
 import qualified Text.Parsec.Expr as Expr
 import Text.Parsec.String (Parser)
@@ -55,12 +45,13 @@ exprP :: Parser (Expr Name)
 exprP = Expr.buildExpressionParser table factorP <?> "expression"
   where
     factorP =
-        try (FloatLit <$> float)
-            <|> try (IntLit <$> natural)
-            <|> try (Call <$> varP <*> parens (commas exprP))
-            <|> try (Assign <$> (varP <* assignment) <*> exprP)
-            <|> try (Var <$> varP)
+        try (EFloatLit <$> float)
+            <|> try (EIntLit <$> natural)
+            <|> try (ECall <$> varP <*> parens (commas exprP))
+            <|> try (EAssign <$> (varP <* assignment) <*> exprP)
+            <|> try (EVar <$> varP)
             <|> try (EBlock <$> blockP)
+            <|> try ifP
             <|> parens exprP
 
     table =
@@ -69,39 +60,40 @@ exprP = Expr.buildExpressionParser table factorP <?> "expression"
         , [binaryOp "+" Add Expr.AssocLeft, binaryOp "-" Sub Expr.AssocLeft]
         ]
       where
-        unaryOp name op = Expr.Prefix $ UnOp op <$ Tok.reservedOp lexer name
-        binaryOp name op = Expr.Infix $ BinOp op <$ Tok.reservedOp lexer name
+        unaryOp name op = Expr.Prefix $ EUnOp op <$ Tok.reservedOp lexer name
+        binaryOp name op = Expr.Infix $ EBinOp op <$ Tok.reservedOp lexer name
+
+    ifP = EIf <$> (ifLex *> parens exprP) <*> blockP <*> optionMaybe (elseLex *> blockP)
 
 -- statement is an expr or a declaration followed by a semi-colon
 statementP :: Parser (Stmt Name)
-statementP = (assignP <|> (Expr <$> exprP)) <* semicolon
+statementP = stmtP <* semicolon
   where
-    assignP =
-        Decl <$> (decl *> varP) <*> (colon *> typeP) <*> (assignment *> exprP)
+    stmtP = declP
+        <|> (SExpr <$> exprP)
+        <|> whileP
+        <|> returnP
+        <|> functionP
+        <?> "statement"
 
--- a block is many statements wrapped in braces
+    declP = SDecl <$> (decl *> varP) <*> (colon *> typeP) <*> (assignment *> exprP)
+    whileP = SWhile <$> (while *> exprP) <*> blockP
+    returnP = SReturn <$> (ret *> exprP)
+
+    -- fn name(t0 arg0, ...) -> returnType { ... }
+    functionP :: Parser (Stmt Name)
+    functionP = do
+        name <- fn *> varP
+        (vars, params) <- unzip <$> parens (commas varAndTypeP)
+        returns <- returnArrow *> typeP
+        SFunc name vars (TCallable params returns) <$> blockP
+      where
+        varAndTypeP = (,) <$> (varP <* colon) <*> typeP
+
+
 blockP :: Parser (Block Name)
 blockP = braces $ Block <$> many statementP
 
--- fn name(t0 arg0, ...) -> returnType { ... }
-functionP :: Parser (Func Name)
-functionP = do
-    name <- fn *> varP
-    (vars, params) <- unzip <$> parens (commas varAndTypeP)
-    returns <- returnArrow *> typeP
-    Func name vars (TCallable params returns) <$> blockP
-  where
-    varAndTypeP = (,) <$> (varP <* colon) <*> typeP
+programP :: Parser (Prog Name)
+programP = Globals <$> (spaceConsumer *> many statementP <* eof)
 
--- a program is a list of globals and functions
-programP :: Parser (Program Name)
-programP = do
-    spaceConsumer
-    globalsAndFunctions <-
-        many $
-            eitherParseComb statementP (functionP <* semicolon)
-    eof
-    return $ Program (lefts globalsAndFunctions) (rights globalsAndFunctions)
-  where
-    eitherParseComb :: Parser a -> Parser b -> Parser (Either a b)
-    eitherParseComb l r = (Left <$> l) <|> (Right <$> r)
