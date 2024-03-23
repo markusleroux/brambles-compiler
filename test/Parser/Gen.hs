@@ -25,7 +25,11 @@ genBinOp :: Gen AST.BinOp
 genBinOp = Gen.element [AST.Add, AST.Sub, AST.Mult, AST.Div, AST.Eq]
 
 genType :: Gen AST.Type
-genType = Gen.element [AST.TInt, AST.TFloat, AST.TBool]
+genType = 
+  Gen.recursive 
+    Gen.choice 
+      (Gen.constant <$> [ AST.TInt , AST.TFloat , AST.TBool ])
+      [ AST.TCallable <$> Gen.list paramRange genType <*> genType ]
 
 
 -- TODO: these should be generic over n
