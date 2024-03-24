@@ -40,7 +40,7 @@ blockTests =
         , testCase "Nested Blocks" $ testBlock nestedBlock [0, 0, 1, 1, 0]
         ]
   where
-    testBlock = testRename block
+    testBlock = testRename pBlock
 
 funcTests =
     testGroup
@@ -74,7 +74,7 @@ funcTests =
                 [0, 1, 2, 3, 3, 4, 4, 3]
         ]
   where
-    testFunc = testRename stmt
+    testFunc = testRename pStmt
 
 testRename :: Foldable t => Projector (Plate Name) (t Name) -> t Name -> [Int] -> Assertion
 testRename p v expected = case runIncrementalSymbolize $ traverseMFor p renamePlate v of

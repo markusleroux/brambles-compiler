@@ -59,23 +59,23 @@ class (ThrowsSymbolizeException m, MonadScoping m) => MonadSymbolize m sym where
 --       MonadSymbolize m Name, then map to int?
 --       OR Constant (Block sym)
 renamePlate :: forall m. MonadSymbolize m Name => Plate Name m
-renamePlate = (mkPlate (\p -> p renameRecurse)){stmt = renameStmt, expr = renameExpr, var = mapM getSym}
+renamePlate = (mkPlate (\p -> p renameRecurse)){pStmt = renameStmt, pExpr = renameExpr, pVar = mapM getSym}
   where
     renameRecurse = multiplate renamePlate
 
-    renameStmt (SDecl n t e) = SDecl <$> mapM createSym n <*> typ renameRecurse t <*> expr renameRecurse e
+    renameStmt (SDecl n t e) = SDecl <$> mapM createSym n <*> pType renameRecurse t <*> pExpr renameRecurse e
     renameStmt SFunc{..} = do
         u <- mapM createSym fName -- function symbol will be available inside function (recursion)
         (args, body) <- withScope $ do
             args <- mapM (mapM createSym) fParams
-            body <- block renameRecurse fBody
+            body <- pBlock renameRecurse fBody
             return (args, body)
 
         return $ SFunc u args fType body
-    renameStmt s = stmt renameRecurse s
+    renameStmt s = pStmt renameRecurse s
 
-    renameExpr (EBlock b) = withScope (EBlock <$> block renameRecurse b)
-    renameExpr v = expr renameRecurse v
+    renameExpr (EBlock b) = withScope (EBlock <$> pBlock renameRecurse b)
+    renameExpr v = pExpr renameRecurse v
 
 {-
  - Incremental symbolizer using (Data.Map, [Int]) in StateT

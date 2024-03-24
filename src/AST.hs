@@ -58,45 +58,45 @@ newtype Prog n = Globals [Stmt n]
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 data Plate n f = Plate
-    { prog :: Prog n -> f (Prog n)
-    , block :: Block n -> f (Block n)
-    , stmt :: Stmt n -> f (Stmt n)
-    , expr :: Expr n -> f (Expr n)
-    , var :: Var n -> f (Var n)
-    , typ :: Type -> f Type
-    , binOp :: BinOp -> f BinOp
-    , unOp :: UnOp -> f UnOp
+    { pProg :: Prog n -> f (Prog n)
+    , pBlock :: Block n -> f (Block n)
+    , pStmt :: Stmt n -> f (Stmt n)
+    , pExpr :: Expr n -> f (Expr n)
+    , pVar :: Var n -> f (Var n)
+    , pType :: Type -> f Type
+    , pBinOp :: BinOp -> f BinOp
+    , pUnOp :: UnOp -> f UnOp
     }
 
 instance Multiplate (Plate n) where
     multiplate :: forall f. Applicative f => Plate n f -> Plate n f
-    multiplate child = Plate buildProg buildBlock buildStmt buildExpr buildVar buildType buildBinOp buildUnOp
+    multiplate Plate{..} = Plate buildProg buildBlock buildStmt buildExpr buildVar buildType buildBinOp buildUnOp
       where
         buildProg :: Prog n -> f (Prog n)
-        buildProg (Globals ss) = Globals <$> (stmt child `traverse` ss)
+        buildProg (Globals ss) = Globals <$> (pStmt `traverse` ss)
 
         buildBlock :: Block n -> f (Block n)
-        buildBlock (Block stmts) = Block <$> (stmt child `traverse` stmts)
+        buildBlock (Block stmts) = Block <$> (pStmt `traverse` stmts)
 
         buildStmt :: Stmt n -> f (Stmt n)
-        buildStmt (SExpr e) = SExpr <$> expr child e
-        buildStmt (SDecl{..}) = SDecl <$> var child declName <*> typ child declT <*> expr child declV
-        buildStmt (SWhile{..}) = SWhile <$> expr child whileCond <*> block child whileBody
-        buildStmt (SReturn e) = SReturn <$> expr child e
-        buildStmt (SFunc{..}) = SFunc <$> var child fName <*> (var child `traverse` fParams) <*> typ child fType <*> block child fBody
+        buildStmt (SExpr e) = SExpr <$> pExpr e
+        buildStmt (SDecl{..}) = SDecl <$> pVar declName <*> pType declT <*> pExpr declV
+        buildStmt (SWhile{..}) = SWhile <$> pExpr whileCond <*> pBlock whileBody
+        buildStmt (SReturn e) = SReturn <$> pExpr e
+        buildStmt (SFunc{..}) = SFunc <$> pVar fName <*> (pVar `traverse` fParams) <*> pType fType <*> pBlock fBody
 
         buildExpr :: Expr n -> f (Expr n)
-        buildExpr (EUnOp{..}) = EUnOp uOp <$> expr child unRHS
-        buildExpr (EBinOp{..}) = EBinOp bOp <$> expr child binLHS <*> expr child binRHS
-        buildExpr (EVar v) = EVar <$> var child v
-        buildExpr (ECall{..}) = ECall <$> var child callFunc <*> (expr child `traverse` callArgs)
-        buildExpr (EAssign{..}) = EAssign <$> var child assignVar <*> expr child assignVal
-        buildExpr (EBlock b) = EBlock <$> block child b
-        buildExpr (EIf{..}) = EIf <$> expr child ifCond <*> block child ifBody <*> (block child `traverse` ifElseMb)
+        buildExpr (EUnOp{..}) = EUnOp uOp <$> pExpr unRHS
+        buildExpr (EBinOp{..}) = EBinOp bOp <$> pExpr binLHS <*> pExpr binRHS
+        buildExpr (EVar v) = EVar <$> pVar v
+        buildExpr (ECall{..}) = ECall <$> pVar callFunc <*> (pExpr `traverse` callArgs)
+        buildExpr (EAssign{..}) = EAssign <$> pVar assignVar <*> pExpr assignVal
+        buildExpr (EBlock b) = EBlock <$> pBlock b
+        buildExpr (EIf{..}) = EIf <$> pExpr ifCond <*> pBlock ifBody <*> (pBlock `traverse` ifElseMb)
         buildExpr v = pure v
 
         buildType :: Type -> f Type
-        buildType (TCallable{..}) = TCallable <$> (typ child `traverse` paramT) <*> typ child returnT
+        buildType (TCallable{..}) = TCallable <$> (pType `traverse` paramT) <*> pType returnT
         buildType t = pure t
 
         buildBinOp :: BinOp -> f BinOp
@@ -110,11 +110,11 @@ instance Multiplate (Plate n) where
 
     mkPlate build =
         Plate
-            (build prog)
-            (build block)
-            (build stmt)
-            (build expr)
-            (build var)
-            (build typ)
-            (build binOp)
-            (build unOp)
+            (build pProg)
+            (build pBlock)
+            (build pStmt)
+            (build pExpr)
+            (build pVar)
+            (build pType)
+            (build pBinOp)
+            (build pUnOp)
