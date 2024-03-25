@@ -81,7 +81,10 @@ renamePlate = (mkPlate (\p -> p renameRecurse)){pStmt = renameStmt, pExpr = rena
  - Incremental symbolizer using (Data.Map, [Int]) in StateT
  -}
 newtype IncrementalSymbolizeM m a = IncrementalSymbolizeM
-    {runIncrementalSymbolizeM :: ExceptT SymbolizeException (StateT (Map String Int, [Int]) m) a}
+    { runIncrementalSymbolizeM :: 
+        ExceptT SymbolizeException 
+          (StateT (Map String Int, [Int]) m) a
+    }
     deriving newtype (Functor, Applicative, Monad, MonadState (Map String Int, [Int]), MonadIO, MonadError SymbolizeException)
     deriving anyclass (ThrowsSymbolizeException)
 
