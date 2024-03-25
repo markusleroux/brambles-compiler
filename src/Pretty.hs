@@ -3,7 +3,7 @@
 module Pretty where
 
 import AST
-import Parser (SourceLoc)
+import Parser ()
 import Data.Bool (bool)
 import Prettyprinter (
     Doc,

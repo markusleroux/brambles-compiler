@@ -1,6 +1,9 @@
+{-# LANGUAGE UndecidableInstances, ConstraintKinds, StandaloneDeriving #-}
 module AST where
 
 import Data.Generics.Multiplate (Multiplate (..))
+import GHC.Exts (Constraint)
+import qualified Data.Kind as Kind (Type)
 
 data UnOp
     = Neg
@@ -78,6 +81,46 @@ data Stmt n (p :: Pass)
 data Block n (p :: Pass) = Block (XBlock p) [Stmt n p]
 
 data Prog n (p :: Pass) = Globals (XProg p) [Stmt n p]
+
+{- Useful constraint types using constraint kinds -}
+type ForAllExprX (c :: Kind.Type -> Constraint) p = 
+  ( c (XEIntLit p)
+  , c (XEFloatLit p)
+  , c (XEBoolLit p)
+  , c (XEVar p)
+  , c (XEUnOp p)
+  , c (XEBinOp p)
+  , c (XECall p)
+  , c (XEAssign p)
+  , c (XEBlock p)
+  , c (XEIf p)
+  )
+
+type ForAllStmtX (c :: Kind.Type -> Constraint) p = 
+  ( c (XSExpr p)
+  , c (XSDecl p)
+  , c (XSWhile p)
+  , c (XSReturn p)
+  , c (XSFunc p)
+  )
+
+type ForAllX (c :: Kind.Type -> Constraint) p = 
+  ( ForAllExprX c p
+  , ForAllStmtX c p
+  , c (XBlock p)
+  , c (XProg p)
+  )
+
+{- Automatically derive instances from underlying -}
+deriving instance (Show n, ForAllX Show p) => Show (Expr n p)
+deriving instance (Show n, ForAllX Show p) => Show (Stmt n p)
+deriving instance (Show n, ForAllX Show p) => Show (Block n p)
+deriving instance (Show n, ForAllX Show p) => Show (Prog n p)
+
+deriving instance (Eq n, ForAllX Eq p) => Eq (Expr n p)
+deriving instance (Eq n, ForAllX Eq p) => Eq (Stmt n p)
+deriving instance (Eq n, ForAllX Eq p) => Eq (Block n p)
+deriving instance (Eq n, ForAllX Eq p) => Eq (Prog n p)
 
 
 {- Multiplate -}

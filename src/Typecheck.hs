@@ -37,6 +37,22 @@ type instance XBlock 'Typed = (SourceLoc, Type)
 
 type instance XProg 'Typed = (SourceLoc, Type)
 
+class Typed t where
+  getType :: t -> Type
+
+instance Typed (Expr n 'Typed) where
+  getType = undefined
+
+instance Typed (Stmt n 'Typed) where
+  getType = undefined
+
+instance Typed (Block n 'Typed) where
+  getType = undefined
+
+instance Typed (Prog n 'Typed) where
+  getType = undefined
+
+
 
 inferExpr :: MonadError TypeError m => Expr n 'Parsed -> m (Expr n 'Typed)
 inferExpr = undefined

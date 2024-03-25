@@ -62,16 +62,6 @@ type instance XBlock 'Parsed = SourceLoc
 
 type instance XProg 'Parsed = SourceLoc
 
-deriving instance Show n => Show (Expr n 'Parsed)
-deriving instance Show n => Show (Block n 'Parsed)
-deriving instance Show n => Show (Stmt n 'Parsed)
-deriving instance Show n => Show (Prog n 'Parsed)
-
-deriving instance Eq n => Eq (Expr n 'Parsed)
-deriving instance Eq n => Eq (Block n 'Parsed)
-deriving instance Eq n => Eq (Stmt n 'Parsed)
-deriving instance Eq n => Eq (Prog n 'Parsed)
-
 typeP :: Parser Type
 typeP =
     TInt <$ integerType
