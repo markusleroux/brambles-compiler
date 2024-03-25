@@ -29,6 +29,7 @@ library compiler-lib
         , Pretty
         , Symbolize
         , LLVM
+        , Typecheck
 
     build-depends:    
         , parsec        ^>=3.1.17.0
