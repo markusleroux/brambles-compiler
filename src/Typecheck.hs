@@ -72,7 +72,7 @@ instance BidirTyped (Stmt n) where
     _ -> throwError TypeError
   infer (SReturn e) = infer e
   infer (SFunc _ _ TCallable{..} fBody) = check returnT fBody  -- TODO: what about returns lower down in AST? e.g. in scoping block
-  infer (SFunc _ _ _ _) = throwError TypeError
+  infer SFunc{} = throwError TypeError
 
 instance BidirTyped (Block n) where
   infer :: forall m. MonadError TypeError m => Block n -> m Type
