@@ -36,8 +36,8 @@ data Expr n
     | EFloatLit Double
     | EBoolLit Bool
     | EVar (Var n)
-    | EUnOp {uOp :: UnOp, unRHS :: Expr n}
-    | EBinOp {bOp :: BinOp, binLHS :: Expr n, binRHS :: Expr n}
+    | EUnOp {unOp :: UnOp, unRHS :: Expr n}
+    | EBinOp {binOp :: BinOp, binLHS :: Expr n, binRHS :: Expr n}
     | ECall {callFunc :: Var n, callArgs :: [Expr n]}  -- TODO: callFunc should be expr to support higher-order functions
     | EAssign {assignVar :: Var n, assignVal :: Expr n}
     | EBlock (Block n) -- TODO: returns in block have different meaning depending on function body/scoping block, distinguish body and block?
@@ -89,8 +89,8 @@ instance Multiplate (Plate n) where
         buildStmt (SFunc{..}) = SFunc <$> pVar fName <*> (pVar `traverse` fParams) <*> pType fType <*> pBlock fBody
 
         buildExpr :: Expr n -> f (Expr n)
-        buildExpr (EUnOp{..}) = EUnOp uOp <$> pExpr unRHS
-        buildExpr (EBinOp{..}) = EBinOp bOp <$> pExpr binLHS <*> pExpr binRHS
+        buildExpr (EUnOp{..}) = EUnOp unOp <$> pExpr unRHS
+        buildExpr (EBinOp{..}) = EBinOp binOp <$> pExpr binLHS <*> pExpr binRHS
         buildExpr (EVar v) = EVar <$> pVar v
         buildExpr (ECall{..}) = ECall <$> pVar callFunc <*> (pExpr `traverse` callArgs)
         buildExpr (EAssign{..}) = EAssign <$> pVar assignVar <*> pExpr assignVal

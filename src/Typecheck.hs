@@ -45,7 +45,7 @@ instance BidirTyped (Expr n) where
   infer EBinOp{..} = do
     tBinLHS <- infer binLHS
     tBinRHS <- check tBinLHS binRHS  -- TODO: order dependent
-    case bOp of
+    case binOp of
       Eq -> pure TBool
       _ -> pure tBinRHS
   infer EIf{..} = infer ifCond >>= \case
