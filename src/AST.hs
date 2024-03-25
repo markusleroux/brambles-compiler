@@ -22,6 +22,7 @@ data Type
     = TInt
     | TFloat
     | TBool
+    | TUnit
     | TCallable {paramT :: [Type], returnT :: Type}
     deriving (Eq, Ord, Show)
 
@@ -37,18 +38,18 @@ data Expr n
     | EVar (Var n)
     | EUnOp {uOp :: UnOp, unRHS :: Expr n}
     | EBinOp {bOp :: BinOp, binLHS :: Expr n, binRHS :: Expr n}
-    | ECall {callFunc :: Var n, callArgs :: [Expr n]}
+    | ECall {callFunc :: Var n, callArgs :: [Expr n]}  -- TODO: callFunc should be expr to support higher-order functions
     | EAssign {assignVar :: Var n, assignVal :: Expr n}
-    | EBlock (Block n)
-    | EIf {ifCond :: Expr n, ifBody :: Block n, ifElseMb :: Maybe (Block n)} -- TODO
+    | EBlock (Block n) -- TODO: returns in block have different meaning depending on function body/scoping block, distinguish body and block?
+    | EIf {ifCond :: Expr n, ifBody :: Block n, ifElseMb :: Maybe (Block n)}  -- TODO: make these expr?
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 data Stmt n
     = SExpr (Expr n)
     | SDecl {declName :: Var n, declT :: Type, declV :: Expr n}
-    | SWhile {whileCond :: Expr n, whileBody :: Block n} -- TODO
-    | SReturn (Expr n) -- TODO
-    | SFunc {fName :: Var n, fParams :: [Var n], fType :: Type, fBody :: Block n}
+    | SWhile {whileCond :: Expr n, whileBody :: Block n} -- TODO: make while an expr?
+    | SReturn (Expr n)
+    | SFunc {fName :: Var n, fParams :: [Var n], fType :: Type, fBody :: Block n} -- TODO: make func decl an expr?
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 newtype Block n = Block [Stmt n]
@@ -56,6 +57,8 @@ newtype Block n = Block [Stmt n]
 
 newtype Prog n = Globals [Stmt n]
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
+
+-- TODO: somewhere to store line numbers
 
 data Plate n f = Plate
     { pProg :: Prog n -> f (Prog n)
