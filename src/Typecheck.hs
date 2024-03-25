@@ -34,10 +34,11 @@ class BidirTyped a where
       else throwError TypeError
 
 instance BidirTyped (Expr n) where
-  infer :: MonadError TypeError m => Expr n -> m Type
   infer (EIntLit _) = pure TInt
   infer (EFloatLit _) = pure TFloat
   infer (EBoolLit _) = pure TBool
+  -- TODO: this isn't really propagating information in both directions the way we would like:
+  --    if we know from another context what e should be, we should push this information down into e
   infer (EUnOp _ e) = infer e >>= \case
     TInt -> pure TInt
     TFloat -> pure TFloat
@@ -52,9 +53,7 @@ instance BidirTyped (Expr n) where
     TBool -> do
       tIfBody <- infer ifBody
       case ifElseMb of
-        Just ifElse -> do
-          tIfElse <- check tIfBody ifElse  -- TODO: order dependent
-          pure tIfElse
+        Just ifElse -> check tIfBody ifElse  -- TODO: order dependent
         Nothing -> pure tIfBody
     _ -> throwError TypeError
   infer (EBlock es) = infer es
@@ -80,14 +79,13 @@ instance BidirTyped (Block n) where
   -- TODO: order dependent
   infer (Block stmts) = fromMaybe TUnit <$> (foldM collectReturns Nothing stmts :: m (Maybe Type))
     where
-      collectReturns :: Maybe Type -> Stmt n -> m (Maybe Type)
       collectReturns Nothing (SReturn e) = Just <$> infer e
       collectReturns (Just t) (SReturn e) = Just <$> check t e
       collectReturns tMb stmt = infer stmt >> pure tMb
 
 instance BidirTyped (Prog n) where
-  infer :: MonadError TypeError m => Prog n -> m Type
   infer (Globals stmts) = mapM_ infer stmts >> pure TUnit
 
--- Approach Two: Generate constraint problem and elaboration, solve constraints and fill in elaboration
+
+-- Approach Two: Generate constraint problem and elaboration, solve constraints and fill in elaboration a la Haskell (https://www.youtube.com/watch?v=-TJGhGa04F8)
 

@@ -39,6 +39,7 @@ instance Pretty Type where
     pretty TInt = pretty "int"
     pretty TFloat = pretty "float"
     pretty TBool = pretty "bool"
+    pretty TUnit = undefined
     pretty TCallable{..} = align (tupled $ pretty <$> paramT) <+> pretty "->" <+> pretty returnT
 
 instance Pretty n => Pretty (Var n) where
