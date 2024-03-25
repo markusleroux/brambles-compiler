@@ -9,6 +9,7 @@ import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Lexer (identifier)
 import Text.Parsec (parse)
+import Parser (SourceLoc(..))
 
 paramRange = Range.linear 0 5
 idRange = Range.linear 1 10
@@ -40,43 +41,46 @@ genVar = AST.V <$> genIdentifier
     validChar = Gen.choice [Gen.alpha, Gen.constant '_']
     isValidIdentifier = isRight . parse identifier ""
 
-genExpr :: Gen (AST.Expr AST.Name)
+genExpr :: Gen (AST.Expr AST.Name 'AST.Parsed)
 genExpr =
     Gen.recursive
         Gen.choice
-        [ AST.EIntLit <$> Gen.integral_ intRange
-        , AST.EFloatLit <$> Gen.double floatRange
-        , AST.EBoolLit <$> Gen.bool
-        , AST.EVar <$> genVar
+        [ AST.EIntLit SourceLoc <$> Gen.integral_ intRange
+        , AST.EFloatLit SourceLoc <$> Gen.double floatRange
+        , AST.EBoolLit SourceLoc <$> Gen.bool
+        , AST.EVar SourceLoc <$> genVar
         ]
-        [ AST.EUnOp <$> genUnOp <*> genExpr
-        , AST.EBinOp <$> genBinOp <*> genExpr <*> genExpr
-        , AST.ECall <$> genVar <*> Gen.list paramRange genExpr
-        , AST.EAssign <$> genVar <*> genExpr
-        , AST.EBlock <$> genBlock
+        [ AST.EUnOp SourceLoc <$> genUnOp <*> genExpr
+        , AST.EBinOp SourceLoc <$> genBinOp <*> genExpr <*> genExpr
+        , AST.ECall SourceLoc <$> genVar <*> Gen.list paramRange genExpr
+        , AST.EAssign SourceLoc <$> genVar <*> genExpr
+        , AST.EBlock SourceLoc <$> genBlock
         -- TODO: if
         ]
 
-genStmt :: Gen (AST.Stmt AST.Name)
+genStmt :: Gen (AST.Stmt AST.Name 'AST.Parsed)
 genStmt =
     Gen.frequency
-        [ (10, AST.SExpr <$> genExpr)
-        , (10, AST.SDecl <$> genVar <*> genType <*> genExpr)
-        , (10, AST.SReturn <$> genExpr)
+        [ (10, AST.SExpr SourceLoc <$> genExpr)
+        , (10, AST.SDecl <$> genLocAndType <*> genVar <*> genExpr)
+        , (10, AST.SReturn SourceLoc <$> genExpr)
         , (3, genFunction)
         -- TODO: while
         ]
   where
-    genFunction :: Gen (AST.Stmt AST.Name)
+    genLocAndType = (,) SourceLoc <$> genType
+
+    genFunction :: Gen (AST.Stmt AST.Name 'AST.Parsed)
     genFunction = do
         (params, paramTs) <- unzip <$> Gen.list paramRange ((,) <$> genVar <*> genType)
         let genCallable = AST.TCallable paramTs <$> genType
-        AST.SFunc <$> genVar <*> pure params <*> genCallable <*> genBlock
+        let genLocAndCallable = (,) SourceLoc <$> genCallable
+        AST.SFunc <$> genLocAndCallable <*> genVar <*> pure params <*> genBlock
 
-genBlock :: Gen (AST.Block AST.Name)
-genBlock = AST.Block <$> Gen.list blockLen genStmt
+genBlock :: Gen (AST.Block AST.Name 'AST.Parsed)
+genBlock = AST.Block SourceLoc <$> Gen.list blockLen genStmt
 
-genProgram :: Gen (AST.Prog AST.Name)
-genProgram = AST.Globals <$> genStatements
+genProgram :: Gen (AST.Prog AST.Name 'AST.Parsed)
+genProgram = AST.Globals SourceLoc <$> genStatements
   where
     genStatements = Gen.list progStmtRange genStmt

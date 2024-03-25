@@ -1,15 +1,11 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE UndecidableInstances #-}
 module Typecheck where
 
 import AST
+import Parser (SourceLoc)
 
-import Data.Maybe (fromMaybe)
-import Control.Monad (foldM)
 import Control.Monad.Except (
     MonadError,
-    throwError,
  )
 
 data TypeError
@@ -20,71 +16,39 @@ instance Show TypeError where
     show TypeError = undefined
 
 
--- Approach One: solve while iterating
--- TODO: store type annotations as we go (add ann to each node in AST?)
---    we probably want to remove the type annotations from the AST, should we use a completely new tree?
-class BidirTyped a where
-  infer :: MonadError TypeError m => a -> m Type
+type instance XEIntLit 'Typed = (SourceLoc, Type)
+type instance XEFloatLit 'Typed = (SourceLoc, Type)
+type instance XEBoolLit 'Typed = (SourceLoc, Type)
+type instance XEVar 'Typed = (SourceLoc, Type)
+type instance XEUnOp 'Typed = (SourceLoc, Type)
+type instance XEBinOp 'Typed = (SourceLoc, Type)
+type instance XECall 'Typed = (SourceLoc, Type)
+type instance XEAssign 'Typed = (SourceLoc, Type)
+type instance XEBlock 'Typed = (SourceLoc, Type)
+type instance XEIf 'Typed = (SourceLoc, Type)
 
-  check :: MonadError TypeError m => Type -> a -> m Type
-  check t e = do
-    tInfered <- infer e
-    if t == tInfered
-      then pure t
-      else throwError TypeError
+type instance XSExpr 'Typed = (SourceLoc, Type)
+type instance XSDecl 'Typed = (SourceLoc, Type)
+type instance XSWhile 'Typed = (SourceLoc, Type)
+type instance XSReturn 'Typed = (SourceLoc, Type)
+type instance XSFunc 'Typed = (SourceLoc, Type)
 
-instance BidirTyped (Expr n) where
-  infer (EIntLit _) = pure TInt
-  infer (EFloatLit _) = pure TFloat
-  infer (EBoolLit _) = pure TBool
-  -- TODO: this isn't really propagating information in both directions the way we would like:
-  --    if we know from another context what e should be, we should push this information down into e
-  infer (EUnOp _ e) = infer e >>= \case
-    TInt -> pure TInt
-    TFloat -> pure TFloat
-    _ -> throwError TypeError
-  infer EBinOp{..} = do
-    tBinLHS <- infer binLHS
-    tBinRHS <- check tBinLHS binRHS  -- TODO: order dependent
-    case binOp of
-      Eq -> pure TBool
-      _ -> pure tBinRHS
-  infer EIf{..} = infer ifCond >>= \case
-    TBool -> do
-      tIfBody <- infer ifBody
-      case ifElseMb of
-        Just ifElse -> check tIfBody ifElse  -- TODO: order dependent
-        Nothing -> pure tIfBody
-    _ -> throwError TypeError
-  infer (EBlock es) = infer es
+type instance XBlock 'Typed = (SourceLoc, Type)
 
-  -- TODO: require lookups
-  infer (EVar v) = undefined
-  infer ECall{..} = undefined
-  infer EAssign{..} = undefined
+type instance XProg 'Typed = (SourceLoc, Type)
 
-instance BidirTyped (Stmt n) where
-  infer :: MonadError TypeError m => Stmt n -> m Type
-  infer (SExpr e) = infer e
-  infer SDecl{..} = check declT declV
-  infer SWhile{..} = infer whileCond >>= \case
-    TBool -> infer whileBody
-    _ -> throwError TypeError
-  infer (SReturn e) = infer e
-  infer (SFunc _ _ TCallable{..} fBody) = check returnT fBody  -- TODO: what about returns lower down in AST? e.g. in scoping block
-  infer SFunc{} = throwError TypeError
 
-instance BidirTyped (Block n) where
-  infer :: forall m. MonadError TypeError m => Block n -> m Type
-  -- TODO: order dependent
-  infer (Block stmts) = fromMaybe TUnit <$> (foldM collectReturns Nothing stmts :: m (Maybe Type))
-    where
-      collectReturns Nothing (SReturn e) = Just <$> infer e
-      collectReturns (Just t) (SReturn e) = Just <$> check t e
-      collectReturns tMb stmt = infer stmt >> pure tMb
+inferExpr :: MonadError TypeError m => Expr n 'Parsed -> m (Expr n 'Typed)
+inferExpr = undefined
 
-instance BidirTyped (Prog n) where
-  infer (Globals stmts) = mapM_ infer stmts >> pure TUnit
+inferStmt :: MonadError TypeError m => Stmt n 'Parsed -> m (Stmt n 'Typed)
+inferStmt = undefined
+
+inferBlock :: MonadError TypeError m => Block n 'Parsed -> m (Block n 'Typed)
+inferBlock = undefined
+
+inferProg :: MonadError TypeError m => Prog n 'Parsed -> m (Prog n 'Typed)
+inferProg = undefined
 
 
 -- Approach Two: Generate constraint problem and elaboration, solve constraints and fill in elaboration a la Haskell (https://www.youtube.com/watch?v=-TJGhGa04F8)

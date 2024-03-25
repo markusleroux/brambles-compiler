@@ -29,11 +29,11 @@ import System.Process
 -- import Data.Bool (bool)
 import Control.Monad (join)
 
-exprToLLVM :: (LLVM.MonadIRBuilder m, LLVM.MonadModuleBuilder m) => AST.Expr n -> m LLVM.Operand
-exprToLLVM (AST.EIntLit v) = pure $ LLVM.int64 v
+exprToLLVM :: (LLVM.MonadIRBuilder m, LLVM.MonadModuleBuilder m) => AST.Expr n p -> m LLVM.Operand
+exprToLLVM (AST.EIntLit _ v) = pure $ LLVM.int64 v
 --exprToLLVM (AST.EFloatLit v) = pure $ LLVM.double v
 -- exprToLLVM (AST.EBoolLit v) = pure $ LLVM.bit (bool 1 0 v)
-exprToLLVM (AST.EBinOp op e1 e2) = join $ binOpToLLVM AST.TInt op <$> exprToLLVM e1 <*> exprToLLVM e2 -- TODO: typing
+exprToLLVM (AST.EBinOp _ op e1 e2) = join $ binOpToLLVM AST.TInt op <$> exprToLLVM e1 <*> exprToLLVM e2 -- TODO: typing
   where
     binOpToLLVM AST.TInt AST.Add = LLVM.add
     binOpToLLVM AST.TInt AST.Sub = LLVM.sub
@@ -46,7 +46,7 @@ exprToLLVM (AST.EBinOp op e1 e2) = join $ binOpToLLVM AST.TInt op <$> exprToLLVM
     binOpToLLVM _ _ = undefined
 exprToLLVM _ = undefined
 
-toLLVM :: AST.Expr n -> LLVM.Module
+toLLVM :: AST.Expr n p -> LLVM.Module
 toLLVM expr = LLVM.buildModule "test" $ do
     printInt <- LLVM.extern "printint" [LLVM.i32] LLVM.i32
 
