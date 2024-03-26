@@ -24,7 +24,13 @@ data Type
     | TBool
     | TUnit
     | TCallable {paramT :: [Type], returnT :: Type}
+    | TOptional Type
     deriving (Eq, Ord, Show)
+
+isNumeric :: Type -> Bool
+isNumeric TInt = True
+isNumeric TFloat = True
+isNumeric _ = False
 
 type Name = String
 
