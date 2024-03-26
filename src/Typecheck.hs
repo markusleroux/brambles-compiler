@@ -39,17 +39,31 @@ type instance XBlock 'Typed = (SourceLoc, Type)
 
 type instance XProg 'Typed = SourceLoc
 
+-- TODO: best way to make the below more generic?
 class Typed t where
   getType :: t -> Type
 
 instance Typed (Expr n 'Typed) where
-  getType = undefined
+  getType (EIntLit ann _) = snd ann
+  getType (EFloatLit ann _) = snd ann
+  getType (EBoolLit ann _) = snd ann
+  getType (EVar ann _) = snd ann
+  getType (EUnOp ann _ _) = snd ann
+  getType (EBinOp ann _ _ _) = snd ann
+  getType (ECall ann _ _) = snd ann
+  getType (EAssign ann _ _) = snd ann
+  getType (EBlock ann _) = snd ann
+  getType (EIf ann _ _ _) = snd ann
 
 instance Typed (Stmt n 'Typed) where
-  getType = undefined
+  getType (SExpr ann _) = snd ann
+  getType (SDecl ann _ _) = snd ann
+  getType (SWhile ann _ _) = snd ann
+  getType (SReturn ann _) = snd ann
+  getType (SFunc ann _ _ _) = snd ann
 
 instance Typed (Block n 'Typed) where
-  getType = undefined
+  getType (Block ann _) = snd ann
 
 
 
