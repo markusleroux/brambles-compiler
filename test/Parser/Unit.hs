@@ -1,6 +1,7 @@
 module Parser.Unit where
 
 import AST
+import Util
 import Parser
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -16,10 +17,8 @@ parsingTests =
         , programTests
         ]
 
-testParser :: Parser a -> String -> a
-testParser parser code = case parse parser "" code of
-    Right e -> e
-    Left err -> error $ show err
+testParser :: Parser a -> (a -> b) -> String -> b
+testParser parser toVoid = either (error . show) id . parse (toVoid <$> parser) ""
 
 typeTests :: TestTree
 typeTests =
@@ -42,43 +41,43 @@ typeTests =
                 @?= TCallable [TInt] (TCallable [TInt] TBool)
         ]
   where
-    testTypeParser = testParser typeP
+    testTypeParser = testParser typeP id
 
 exprTests :: TestTree
 exprTests =
     testGroup
         "Basic expression parsing"
-        [ testCase "Integer literal" $ testSExprParser "3" @?= EIntLit SourceLoc 3
-        , testCase "Float literal" $ testSExprParser "3.0" @?= EFloatLit SourceLoc 3.0
+        [ testCase "Integer literal" $ testSExprParser "3" @?= EIntLit () 3
+        , testCase "Float literal" $ testSExprParser "3.0" @?= EFloatLit () 3.0
         , testCase "Call" $
             testSExprParser "function(3, 4)"
-                @?= ECall SourceLoc (EVar SourceLoc $ V "function") [EIntLit SourceLoc 3, EIntLit SourceLoc 4]
+                @?= ECall () (EVar () $ V "function") [EIntLit () 3, EIntLit () 4]
         , testCase "Call" $
             testSExprParser "aw(ch(-1.0, 0.0) - 2)"
-                @?= ECall SourceLoc (EVar SourceLoc $ V "aw") [ EBinOp SourceLoc Sub 
-                      (ECall SourceLoc (EVar SourceLoc $ V "ch") [EUnOp SourceLoc Neg $ EFloatLit SourceLoc 1.0, EFloatLit SourceLoc 0.0]) 
-                      (EIntLit SourceLoc 2)
+                @?= ECall () (EVar () $ V "aw") [ EBinOp () Sub 
+                      (ECall () (EVar () $ V "ch") [EUnOp () Neg $ EFloatLit () 1.0, EFloatLit () 0.0]) 
+                      (EIntLit () 2)
                       ]
-        , testCase "Variable" $ testSExprParser "abc" @?= EVar SourceLoc (V "abc")
+        , testCase "Variable" $ testSExprParser "abc" @?= EVar () (V "abc")
         , -- Binary operators
-          testCase "Addition" $ testSExprParser "3 + 2" @?= EBinOp SourceLoc Add (EIntLit SourceLoc 3) (EIntLit SourceLoc 2)
+          testCase "Addition" $ testSExprParser "3 + 2" @?= EBinOp () Add (EIntLit () 3) (EIntLit () 2)
         , testCase "Addition (braces)" $
             testSExprParser "3 + (2 - 5)"
-                @?= EBinOp SourceLoc Add (EIntLit SourceLoc 3) (EBinOp SourceLoc Sub (EIntLit SourceLoc 2) (EIntLit SourceLoc 5))
-        , testCase "Subtraction" $ testSExprParser "3 - 2" @?= EBinOp SourceLoc Sub (EIntLit SourceLoc 3) (EIntLit SourceLoc 2)
-        , testCase "Multiplication" $ testSExprParser "3 * 2" @?= EBinOp SourceLoc Mult (EIntLit SourceLoc 3) (EIntLit SourceLoc 2)
-        , testCase "Division" $ testSExprParser "3 / 2" @?= EBinOp SourceLoc Div (EIntLit SourceLoc 3) (EIntLit SourceLoc 2)
-        , testCase "Division (no spaces)" $ testSExprParser "3/2" @?= EBinOp SourceLoc Div (EIntLit SourceLoc 3) (EIntLit SourceLoc 2)
-        , testCase "EAssignment" $ testSExprParser "x = 2" @?= EAssign SourceLoc (V "x") (EIntLit SourceLoc 2)
+                @?= EBinOp () Add (EIntLit () 3) (EBinOp () Sub (EIntLit () 2) (EIntLit () 5))
+        , testCase "Subtraction" $ testSExprParser "3 - 2" @?= EBinOp () Sub (EIntLit () 3) (EIntLit () 2)
+        , testCase "Multiplication" $ testSExprParser "3 * 2" @?= EBinOp () Mult (EIntLit () 3) (EIntLit () 2)
+        , testCase "Division" $ testSExprParser "3 / 2" @?= EBinOp () Div (EIntLit () 3) (EIntLit () 2)
+        , testCase "Division (no spaces)" $ testSExprParser "3/2" @?= EBinOp () Div (EIntLit () 3) (EIntLit () 2)
+        , testCase "EAssignment" $ testSExprParser "x = 2" @?= EAssign () (V "x") (EIntLit () 2)
         , testCase "Precedence" $
-            testSExprParser "x = y + 5.0" @?= EAssign SourceLoc (V "x") (EBinOp SourceLoc Add (EVar SourceLoc (V "y")) (EFloatLit SourceLoc 5.0))
-        , testCase "Basic block" $ testSExprParser "{ }" @?= EBlock (Block SourceLoc [] Nothing)
+            testSExprParser "x = y + 5.0" @?= EAssign () (V "x") (EBinOp () Add (EVar () (V "y")) (EFloatLit () 5.0))
+        , testCase "Basic block" $ testSExprParser "{ }" @?= EBlock (Block () [] Nothing)
         , testCase "EAssignment in block" $ 
             testSExprParser "{ x = 3; }" 
-              @?= EBlock (Block SourceLoc [SExpr SourceLoc $ EAssign SourceLoc (V "x") (EIntLit SourceLoc 3)] Nothing)
+              @?= EBlock (Block () [SExpr () $ EAssign () (V "x") (EIntLit () 3)] Nothing)
         ]
   where
-    testSExprParser = testParser exprP
+    testSExprParser = testParser exprP undecExpr
 
 fnTests :: TestTree
 fnTests =
@@ -130,7 +129,7 @@ fnTests =
                     }
         ]
   where
-    testFnParser = testParser exprP
+    testFnParser = testParser exprP id
 
 programTests :: TestTree
 programTests =
@@ -150,4 +149,4 @@ programTests =
                     ]
         ]
   where
-    testProgramParser = testParser programP
+    testProgramParser = testParser programP id

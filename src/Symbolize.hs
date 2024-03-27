@@ -55,16 +55,16 @@ class (ThrowsSymbolizeException m, MonadScoping m) => MonadSymbolize m sym where
 
 
 {- Renaming Functions -}
-renameProg :: MonadSymbolize m sym => Prog Name 'Parsed -> m (Prog sym 'Parsed)
+renameProg :: MonadSymbolize m sym => Prog Name p -> m (Prog sym p)
 renameProg (Globals x gs) = Globals x <$> mapM renameStmt gs
 
-renameStmt :: MonadSymbolize m sym => Stmt Name 'Parsed -> m (Stmt sym 'Parsed)
+renameStmt :: MonadSymbolize m sym => Stmt Name p -> m (Stmt sym p)
 renameStmt SExpr{..}   = SExpr exprX     <$> renameExpr exprExpr
 renameStmt SDecl{..}   = SDecl declX     <$> mapM createSym declName <*> renameExpr declExpr -- TODO: careful of recursive definitions
 renameStmt SWhile{..}  = SWhile whileX   <$> renameExpr whilePred <*> withScope (mapM renameStmt whileBody)
 renameStmt SReturn{..} = SReturn returnX <$> renameExpr returnExpr
 
-renameExpr :: MonadSymbolize m sym => Expr Name 'Parsed -> m (Expr sym 'Parsed)
+renameExpr :: MonadSymbolize m sym => Expr Name p -> m (Expr sym p)
 renameExpr EIntLit{..}   = pure $ EIntLit   intLitX   intLitVal
 renameExpr EFloatLit{..} = pure $ EFloatLit floatLitX floatLitVal
 renameExpr EBoolLit{..}  = pure $ EBoolLit  boolLitX  boolLitVal
@@ -83,7 +83,7 @@ renameExpr EFunc{..} = do
       return (args, body)
   pure $ EFunc funcX u args body
 
-renameBlock :: MonadSymbolize m sym => Block Name 'Parsed -> m (Block sym 'Parsed)
+renameBlock :: MonadSymbolize m sym => Block Name p -> m (Block sym p)
 renameBlock Block{..} = withScope $ Block blockX <$> mapM renameStmt blockBody <*> mapM renameExpr blockResult
 
 {- 

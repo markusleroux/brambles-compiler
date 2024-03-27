@@ -34,7 +34,7 @@ isNumeric _ = False
 
 
 {- Trees that Grow -}
-data Pass = Parsed | Typed;
+data Pass = Plain | Parsed | Typed;
 
 type family XEIntLit   (p :: Pass)
 type family XEFloatLit (p :: Pass)

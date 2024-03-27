@@ -39,7 +39,7 @@ type instance XSWhile 'Typed    = (SourceLoc, Type)
 type instance XSReturn 'Typed   = (SourceLoc, Type)
 
 type instance XBlock 'Typed    = (SourceLoc, Type)
-type instance XProg 'Typed = SourceLoc
+type instance XProg 'Typed     = SourceLoc
 
 -- TODO: best way to make the below more generic?
 class Typed t where
