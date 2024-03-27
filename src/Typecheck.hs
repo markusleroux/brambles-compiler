@@ -22,30 +22,31 @@ data TypeError
 instance Exception TypeError
 
 
-type instance XEIntLit 'Typed = (SourceLoc, Type)
+type instance XEIntLit 'Typed   = (SourceLoc, Type)
 type instance XEFloatLit 'Typed = (SourceLoc, Type)
-type instance XEBoolLit 'Typed = (SourceLoc, Type)
-type instance XEVar 'Typed = (SourceLoc, Type)
-type instance XEUnOp 'Typed = (SourceLoc, Type)
-type instance XEBinOp 'Typed = (SourceLoc, Type)
-type instance XECall 'Typed = (SourceLoc, Type)
-type instance XEAssign 'Typed = (SourceLoc, Type)
-type instance XEBlock 'Typed = (SourceLoc, Type)
-type instance XEIf 'Typed = (SourceLoc, Type)
+type instance XEBoolLit 'Typed  = (SourceLoc, Type)
+type instance XEVar 'Typed      = (SourceLoc, Type)
+type instance XEUnOp 'Typed     = (SourceLoc, Type)
+type instance XEBinOp 'Typed    = (SourceLoc, Type)
+type instance XECall 'Typed     = (SourceLoc, Type)
+type instance XEAssign 'Typed   = (SourceLoc, Type)
+type instance XEIf 'Typed       = (SourceLoc, Type)
+type instance XEFunc 'Typed     = (SourceLoc, Type)
 
-type instance XSExpr 'Typed = (SourceLoc, Type)
-type instance XSDecl 'Typed = (SourceLoc, Type)
-type instance XSWhile 'Typed = (SourceLoc, Type)
-type instance XSReturn 'Typed = (SourceLoc, Type)
-type instance XSFunc 'Typed = (SourceLoc, Type)
+type instance XSExpr 'Typed     = (SourceLoc, Type)
+type instance XSDecl 'Typed     = (SourceLoc, Type)
+type instance XSWhile 'Typed    = (SourceLoc, Type)
+type instance XSReturn 'Typed   = (SourceLoc, Type)
 
-type instance XBlock 'Typed = (SourceLoc, Type)
-
-type instance XProg 'Typed = SourceLoc
+type instance XBlock 'Typed    = (SourceLoc, Type)
+type instance XProg 'Typed     = SourceLoc
 
 -- TODO: best way to make the below more generic?
 class Typed t where
   getType :: t -> Type
+
+instance Typed (Block n 'Typed) where
+  getType (Block ann _ _) = snd ann
 
 instance Typed (Expr n 'Typed) where
   getType (EIntLit ann _) = snd ann
@@ -56,20 +57,24 @@ instance Typed (Expr n 'Typed) where
   getType (EBinOp ann _ _ _) = snd ann
   getType (ECall ann _ _) = snd ann
   getType (EAssign ann _ _) = snd ann
-  getType (EBlock ann _) = snd ann
+  getType (EBlock b) = getType b
   getType (EIf ann _ _ _) = snd ann
+  getType (EFunc ann _ _ _) = snd ann
 
 instance Typed (Stmt n 'Typed) where
   getType (SExpr ann _) = snd ann
   getType (SDecl ann _ _) = snd ann
   getType (SWhile ann _ _) = snd ann
   getType (SReturn ann _) = snd ann
-  getType (SFunc ann _ _ _) = snd ann
 
-instance Typed (Block n 'Typed) where
-  getType (Block ann _) = snd ann
-
-
+inferBlock :: MonadError TypeError m => Block n 'Parsed -> m (Block n 'Typed)
+inferBlock (Block l ss eMb) = do
+  ss' <- mapM inferStmt ss
+  case eMb of
+    Just e -> do
+      e' <- inferExpr e
+      pure $ Block (l, getType e') ss' (Just e')
+    Nothing -> pure $ Block (l, TUnit) ss' Nothing
 
 inferExpr :: MonadError TypeError m => Expr n 'Parsed -> m (Expr n 'Typed)
 inferExpr (EIntLit l v) = pure $ EIntLit (l, TInt) v
@@ -90,49 +95,42 @@ inferExpr (EBinOp l op e1 e2) = do
     _ -> do
       unless (isNumeric t) $ throwError TypeError
       pure $ EBinOp (l, t) op e1' e2'
-inferExpr (EBlock l b) = inferBlock b >>= \b' -> pure $ EBlock (l, getType b') b'
-inferExpr (EIf l c t eMb) = do
-  c' <- inferExpr c
-  unless (getType c' == TBool) $ throwError TypeError
-  t' <- inferBlock t
-  case eMb of
-    Just e -> do
-      e' <- inferBlock e
-      unless (getType t' == getType e') $ throwError TypeError
-      pure $ EIf (l, getType t') c' t' (Just e')
-    Nothing -> pure $ EIf (l, TOptional $ getType t') c' t' Nothing
+inferExpr EBlock{..} = EBlock <$> inferBlock unBlock
+inferExpr EIf{..} = do
+  ifPred' <- inferExpr ifPred
+  unless (getType ifPred' == TBool) $ throwError TypeError
+  ifThen' <- inferBlock ifThen
+  case ifElseMb of
+    Just ifElse -> do
+      ifElse' <- inferBlock ifElse
+      unless (getType ifElse' == getType ifThen') $ throwError TypeError
+      pure $ EIf (ifX, getType ifThen') ifPred' ifThen' (Just ifElse')
+    Nothing -> pure $ EIf (ifX, TOptional $ getType ifThen') ifPred' ifThen' Nothing
+inferExpr (EFunc (l, ann) n ps b) = do
+  b' <- inferBlock b  -- TODO: should be able to lookup param types
+  let earlyReturnT = [getType e | SReturn _ e <- blockBody b']
+      returnExprT = maybe TUnit getType $ blockResult b'
+  case earlyReturnT ++ [returnExprT] of
+    [] -> unless (returnT ann == TUnit) $ throwError TypeError
+    xs -> unless (all (== returnT ann) xs) $ throwError TypeError
+  pure $ EFunc (l, ann) n ps b'
+
 -- TODO: require lookups
-inferExpr (EAssign _ _ _) = undefined
-inferExpr (ECall _ _ _) = undefined
-inferExpr (EVar _ _) = undefined
+inferExpr EAssign{..} = undefined
+inferExpr ECall{..} = undefined
+inferExpr EVar{..} = undefined
 
 inferStmt :: MonadError TypeError m => Stmt n 'Parsed -> m (Stmt n 'Typed)
-inferStmt (SExpr l e) = inferExpr e >>= \e' -> pure $ SExpr (l, getType e') e'
+inferStmt (SExpr l e) = SExpr (l, TUnit) <$> inferExpr e
 inferStmt (SDecl (l, ann) n e) = do
   e' <- inferExpr e
   unless (ann == getType e') $ throwError TypeError
-  pure $ SDecl (l, ann) n e'
-inferStmt (SWhile l c b) = do
-  c' <- inferExpr c
-  unless (getType c' == TBool) $ throwError TypeError
-  b' <- inferBlock b
-  pure $ SWhile (l, getType b') c' b'
-inferStmt (SReturn l e) = do
-  e' <- inferExpr e
-  pure $ SReturn (l, getType e') e'
-inferStmt (SFunc (l, ann) n ps b) = do
-  b' <- inferBlock b
-  unless (ann == getType b') $ throwError TypeError
-  pure $ SFunc (l, ann) n ps b'
-
-inferBlock :: MonadError TypeError m => Block n 'Parsed -> m (Block n 'Typed)
-inferBlock (Block l ss) = do
-  ss' <- mapM inferStmt ss
-  case [rt | SReturn (_, rt) _ <- ss'] of
-    [] -> pure $ Block (l, TUnit) []
-    rt:rts -> do
-      unless (all (==rt) rts) $ throwError TypeError
-      pure $ Block (l, rt) ss'
+  pure $ SDecl (l, TUnit) n e'
+inferStmt SWhile{..} = do
+  whilePred' <- inferExpr whilePred
+  unless (getType whilePred' == TBool) $ throwError TypeError
+  SWhile (whileX, TUnit) whilePred' <$> mapM inferStmt whileBody
+inferStmt (SReturn l e) = SReturn (l, TUnit) <$> inferExpr e
 
 inferProg :: MonadError TypeError m => Prog n 'Parsed -> m (Prog n 'Typed)
 inferProg (Globals l ss) = Globals l <$> mapM inferStmt ss

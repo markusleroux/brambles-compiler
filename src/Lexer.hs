@@ -23,7 +23,7 @@ lexer = Tok.makeTokenParser languageDef
               Tok.opStart = opParser
             , Tok.opLetter = opParser
             , -- Reserved
-              Tok.reservedNames = ["int", "float", "bool", "true", "false", "fn", "let", "while", "return", "if", "else"]
+              Tok.reservedNames = ["int", "float", "bool", "true", "false", "fn", "let", "while", "return", "if", "then", "else"]
             , Tok.reservedOpNames = ["+", "-", "*", "/", ";", "->", "=", ":", "=="]
             , -- Other
               Tok.caseSensitive = True
@@ -71,4 +71,6 @@ ret = Tok.reserved lexer "return"
 
 ifLex = Tok.reserved lexer "if"
 
-elseLex = Tok.reserved lexer "if"
+thenLex = Tok.reserved lexer "then"
+
+elseLex = Tok.reserved lexer "else"

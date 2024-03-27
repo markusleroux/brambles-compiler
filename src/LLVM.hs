@@ -26,7 +26,10 @@ import qualified LLVM.IRBuilder.Monad as LLVM
 import LLVM.Pretty (ppllvm)
 
 import Control.Monad (join, void, unless)
+import Control.Monad.Fix
 import Control.Exception (bracket)
+
+import Data.Maybe (fromJust)
 
 import Data.Text (Text)
 import qualified Data.Text.Encoding as T
@@ -39,6 +42,7 @@ import System.IO (hClose)
 import System.Posix.Temp (mkdtemp, mkstemps)
 import System.Process (callProcess)
 
+
 typeToLLVM :: AST.Type -> LLVM.Type
 typeToLLVM AST.TInt = LLVM.i64
 typeToLLVM AST.TFloat = LLVM.double
@@ -49,81 +53,84 @@ typeToLLVM (AST.TOptional _) = undefined
 
 binOpToLLVM :: LLVM.MonadIRBuilder m => AST.Type -> AST.BinOp -> LLVM.Operand -> LLVM.Operand -> m LLVM.Operand
 binOpToLLVM t AST.Add = case t of
-  AST.TInt -> LLVM.add
+  AST.TInt   -> LLVM.add
   AST.TFloat -> LLVM.fadd
-  _ -> error "Codegen error"
+  _          -> error "Codegen error"
 binOpToLLVM t AST.Sub = case t of
-  AST.TInt -> LLVM.sub
+  AST.TInt   -> LLVM.sub
   AST.TFloat -> LLVM.fsub
-  _ -> error "Codegen error"
+  _          -> error "Codegen error"
 binOpToLLVM t AST.Mult = case t of
-  AST.TInt -> LLVM.mul
+  AST.TInt   -> LLVM.mul
   AST.TFloat -> LLVM.fmul
-  _ -> error "Codegen error"
+  _          -> error "Codegen error"
 binOpToLLVM t AST.Div = case t of
-  AST.TInt -> LLVM.udiv  -- TODO: should be signed?
+  AST.TInt   -> LLVM.udiv  -- TODO: should be signed?
   AST.TFloat -> LLVM.fdiv
-  _ -> error "Codegen error"
+  _          -> error "Codegen error"
 binOpToLLVM t AST.Eq = case t of
-  AST.TInt -> LLVM.icmp LLVM.EQ
+  AST.TInt   -> LLVM.icmp LLVM.EQ
   AST.TFloat -> LLVM.fcmp LLVM.UEQ  -- possibly infinity
-  AST.TBool -> LLVM.icmp LLVM.EQ
-  _ -> error "Codegen error"
+  AST.TBool  -> LLVM.icmp LLVM.EQ
+  _          -> error "Codegen error"
 binOpToLLVM _ _ = undefined
 
 unOpToLLVM :: LLVM.MonadIRBuilder m => AST.Type -> AST.UnOp -> LLVM.Operand -> m LLVM.Operand
 unOpToLLVM t AST.Pos = error "Codegen error"
 unOpToLLVM t AST.Neg = case t of
-  AST.TInt -> LLVM.sub $ LLVMC.int64 0
+  AST.TInt   -> LLVM.sub $ LLVMC.int64 0
   AST.TFloat -> LLVM.fsub $ LLVMC.double 0
-  _ -> error "Codegen error"
-
-exprToLLVM :: LLVM.MonadIRBuilder m => AST.Expr n 'AST.Typed -> m LLVM.Operand
-exprToLLVM (AST.EIntLit _ v) = pure $ LLVMC.int64 v
-exprToLLVM (AST.EFloatLit _ v) = pure $ LLVMC.double v
-exprToLLVM (AST.EBoolLit _ v) = pure $ LLVMC.bit (if v then 1 else 0)
-exprToLLVM (AST.EVar _ v) = undefined
-exprToLLVM (AST.EUnOp (_, t) op v) = case op of
-  AST.Pos -> exprToLLVM v
-  AST.Neg -> unOpToLLVM t op =<< exprToLLVM v
-exprToLLVM (AST.EBinOp (_, t) op e1 e2) = join $ binOpToLLVM t op <$> exprToLLVM e1 <*> exprToLLVM e2
-exprToLLVM (AST.ECall _ _ _) = undefined
-exprToLLVM (AST.EAssign _ _ _) = undefined
-exprToLLVM (AST.EBlock _ b) = blockToLLVM b
-{-
-exprToLLVM AST.EIf{..} = mdo
-    pred <- exprToLLVM ifCond
-
-    LLVM.condBr pred bThen (maybe mergeBlock (const bElse) ifElseMb)
-
-    bThen <- LLVM.block `LLVM.named` "then"
-    blockToLLVM ifBody
-    mkTerminator $ LLVM.br mergeBlock
-
-    bElse <- LLVM.block `LLVM.named` "else"
-    blockToLLVM <$> ifElseMb
-    mkTerminator $ LLVM.br mergeBlock
-
-    mergeBlock <- LLVM.block `LLVM.named` "merge"
-    pure ()
-  where
-    -- terminator already exists in block, LLVM disallows branch
-    mkTerminator = unless =<< LLVM.hasTerminator
--}
-
-stmtToLLVM :: LLVM.MonadIRBuilder m => AST.Stmt n 'AST.Typed -> m ()
-stmtToLLVM (AST.SExpr _ e) = void $ exprToLLVM e
-stmtToLLVM (AST.SDecl _ _ _) = undefined
-stmtToLLVM (AST.SWhile _ _ _) = undefined
-stmtToLLVM (AST.SReturn (_, t) e) = case t of
-  AST.TUnit -> LLVM.retVoid  -- TODO: unit vs void?
-  _ -> LLVM.ret =<< exprToLLVM e
-stmtToLLVM (AST.SFunc _ _ _ _) = undefined
+  _          -> error "Codegen error"
 
 blockToLLVM :: LLVM.MonadIRBuilder m => AST.Block n 'AST.Typed -> m LLVM.Operand
 blockToLLVM = undefined
 
-progToLLVM :: LLVM.MonadIRBuilder m => AST.Prog n 'AST.Typed -> m ()
+exprToLLVM :: (LLVM.MonadIRBuilder m, MonadFix m) => AST.Expr n 'AST.Typed -> m LLVM.Operand
+exprToLLVM (AST.EIntLit _ v)   = pure $ LLVMC.int64 v
+exprToLLVM (AST.EFloatLit _ v) = pure $ LLVMC.double v
+exprToLLVM (AST.EBoolLit _ v)  = pure $ LLVMC.bit (if v then 1 else 0)
+exprToLLVM (AST.EVar _ v)      = undefined
+exprToLLVM (AST.EUnOp (_, t) op v) = case op of
+  AST.Pos -> exprToLLVM v
+  AST.Neg -> unOpToLLVM t op =<< exprToLLVM v
+exprToLLVM (AST.EBinOp (_, t) op e1 e2) = join $ binOpToLLVM t op <$> exprToLLVM e1 <*> exprToLLVM e2
+exprToLLVM (AST.ECall _ _ _)   = undefined
+exprToLLVM (AST.EAssign _ _ _) = undefined
+exprToLLVM AST.EBlock{..}  = blockToLLVM unBlock
+exprToLLVM AST.EIf{..} = mdo
+    ifPred' <- exprToLLVM ifPred
+    let ifElse = fromJust ifElseMb  -- TODO
+
+    LLVM.condBr ifPred' ifThen' ifElse'
+
+    ifThen' <- LLVM.block `LLVM.named` "if.then"
+    ifThenVal <- blockToLLVM ifThen
+    mkTerminator $ LLVM.br endBlock
+
+    ifElse' <- LLVM.block `LLVM.named` "if.else"
+    ifElseVal <- blockToLLVM ifElse
+    mkTerminator $ LLVM.br endBlock
+
+    endBlock <- LLVM.block `LLVM.named` "if.exit"
+    LLVM.phi [(ifThenVal, ifThen'), (ifElseVal, ifElse')]
+  where
+    -- terminator already exists in block, LLVM disallows branch
+    mkTerminator :: LLVM.MonadIRBuilder m => m () -> m ()
+    mkTerminator instr = do
+      c <- LLVM.hasTerminator
+      unless c instr
+
+exprToLLVM (AST.EFunc _ _ _ _) = undefined
+
+stmtToLLVM :: (LLVM.MonadIRBuilder m, MonadFix m) => AST.Stmt n 'AST.Typed -> m ()
+stmtToLLVM (AST.SExpr _ e)    = void $ exprToLLVM e
+stmtToLLVM (AST.SDecl _ _ _)  = undefined
+stmtToLLVM (AST.SWhile _ _ _) = undefined
+stmtToLLVM (AST.SReturn (_, t) e) = case t of
+  AST.TUnit -> LLVM.retVoid  -- TODO: unit vs void?
+  _ -> LLVM.ret =<< exprToLLVM e
+
+progToLLVM :: (LLVM.MonadIRBuilder m, MonadFix m) => AST.Prog n 'AST.Typed -> m ()
 progToLLVM (AST.Globals _ stmts) = mapM_ stmtToLLVM stmts
 
 
