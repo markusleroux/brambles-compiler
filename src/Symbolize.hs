@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveAnyClass, DerivingVia #-}
-
 module Symbolize where
 
 import AST
