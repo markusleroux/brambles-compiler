@@ -35,7 +35,7 @@ import Data.Text (Text)
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
 
-import Data.FileEmbed (embedFile, makeRelativeToProject)
+import Data.FileEmbed (embedFileRelative)
 import Data.String.Conversions (cs)
 import System.Directory (removePathForcibly, withCurrentDirectory)
 import System.IO (hClose)
@@ -146,7 +146,7 @@ toLLVM expr = LLVM.buildModule "test" $ do
 
 -- https://github.com/danieljharvey/llvm-calc/blob/trunk/llvm-calc/src/Calc/Compile/RunLLVM.hs
 cRuntime :: Text
-cRuntime = T.decodeUtf8 $(makeRelativeToProject "static/runtime.c" >>= embedFile)
+cRuntime = T.decodeUtf8 $(embedFileRelative "static/runtime.c")
 
 compile :: LLVM.Module -> FilePath -> IO ()
 compile llvmModule outfile =
