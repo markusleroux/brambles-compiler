@@ -57,7 +57,7 @@ type family XProg      (p :: Pass)
 
 type Name = String
 
-newtype Var n = V n
+newtype Var n = V { unVar :: n }
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 data Block n (p :: Pass) 
