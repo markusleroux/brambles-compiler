@@ -1,9 +1,9 @@
-{-# LANGUAGE InstanceSigs #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
+{-# LANGUAGE UndecidableInstances, ConstraintKinds, StandaloneDeriving #-}
 module AST where
 
 import Data.Generics.Multiplate (Multiplate (..))
+import GHC.Exts (Constraint)
+import qualified Data.Kind as Kind (Type)
 
 data UnOp
     = Neg
@@ -31,76 +31,135 @@ type Name = String
 newtype Var n = V n
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
-data Expr n
-    = EIntLit Integer
-    | EFloatLit Double
-    | EBoolLit Bool
-    | EVar (Var n)
-    | EUnOp {unOp :: UnOp, unRHS :: Expr n}
-    | EBinOp {binOp :: BinOp, binLHS :: Expr n, binRHS :: Expr n}
-    | ECall {callFunc :: Var n, callArgs :: [Expr n]}  -- TODO: callFunc should be expr to support higher-order functions
-    | EAssign {assignVar :: Var n, assignVal :: Expr n}
-    | EBlock (Block n) -- TODO: returns in block have different meaning depending on function body/scoping block, distinguish body and block?
-    | EIf {ifCond :: Expr n, ifBody :: Block n, ifElseMb :: Maybe (Block n)}  -- TODO: make these expr?
-    deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
-data Stmt n
-    = SExpr (Expr n)
-    | SDecl {declName :: Var n, declT :: Type, declV :: Expr n}
-    | SWhile {whileCond :: Expr n, whileBody :: Block n} -- TODO: make while an expr?
-    | SReturn (Expr n)
-    | SFunc {fName :: Var n, fParams :: [Var n], fType :: Type, fBody :: Block n} -- TODO: make func decl an expr?
-    deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
+{- Trees that Grow -}
+data Pass = Parsed | Typed;
 
-newtype Block n = Block [Stmt n]
-    deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
+type family XEIntLit (p :: Pass)
+type family XEFloatLit (p :: Pass)
+type family XEBoolLit (p :: Pass)
+type family XEVar (p :: Pass)
+type family XEUnOp (p :: Pass)
+type family XEBinOp (p :: Pass)
+type family XECall (p :: Pass)
+type family XEAssign (p :: Pass)
+type family XEBlock (p :: Pass)
+type family XEIf (p :: Pass)
 
-newtype Prog n = Globals [Stmt n]
-    deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
+type family XSExpr (p :: Pass)
+type family XSDecl (p :: Pass)
+type family XSWhile (p :: Pass)
+type family XSReturn (p :: Pass)
+type family XSFunc (p :: Pass)
 
--- TODO: somewhere to store line numbers
+type family XBlock (p :: Pass)
 
-data Plate n f = Plate
-    { pProg :: Prog n -> f (Prog n)
-    , pBlock :: Block n -> f (Block n)
-    , pStmt :: Stmt n -> f (Stmt n)
-    , pExpr :: Expr n -> f (Expr n)
+type family XProg (p :: Pass)
+
+data Expr n (p :: Pass)
+    = EIntLit   (XEIntLit p)   Integer
+    | EFloatLit (XEFloatLit p) Double
+    | EBoolLit  (XEBoolLit p)  Bool
+    | EVar      (XEVar p)     (Var n)
+    | EUnOp {unExt :: XEUnOp p, unOp :: UnOp, unRHS :: Expr n p}
+    | EBinOp {binExt :: XEBinOp p, binOp :: BinOp, binLHS :: Expr n p, binRHS :: Expr n p}
+    -- TODO: callFunc should be expr to support higher-order functions
+    | ECall {callExt :: XECall p, callFunc :: Var n, callArgs :: [Expr n p]}
+    | EAssign {assignExt :: XEAssign p, assignVar :: Var n, assignVal :: Expr n p}
+    -- TODO: returns in block have different meaning depending on function body/scoping block, distinguish body and block?
+    | EBlock (XEBlock p) (Block n p) 
+    | EIf {ifExt :: XEIf p, ifCond :: Expr n p, ifBody :: Block n p, ifElseMb :: Maybe (Block n p)}  -- TODO: make these expr?
+
+data Stmt n (p :: Pass)
+    = SExpr (XSExpr p) (Expr n p)
+    | SDecl {declExt :: XSDecl p, declName :: Var n, declV :: Expr n p}
+    | SWhile {whileExt :: XSWhile p, whileCond :: Expr n p, whileBody :: Block n p} -- TODO: make while an expr?
+    | SReturn (XSReturn p) (Expr n p)
+     -- TODO: make func decl an expr?
+    | SFunc {fExt :: XSFunc p, fName :: Var n, fParams :: [Var n], fBody :: Block n p}
+
+data Block n (p :: Pass) = Block (XBlock p) [Stmt n p]
+
+data Prog n (p :: Pass) = Globals (XProg p) [Stmt n p]
+
+{- Useful constraint types using constraint kinds -}
+type ForAllExprX (c :: Kind.Type -> Constraint) p = 
+  ( c (XEIntLit p)
+  , c (XEFloatLit p)
+  , c (XEBoolLit p)
+  , c (XEVar p)
+  , c (XEUnOp p)
+  , c (XEBinOp p)
+  , c (XECall p)
+  , c (XEAssign p)
+  , c (XEBlock p)
+  , c (XEIf p)
+  )
+
+type ForAllStmtX (c :: Kind.Type -> Constraint) p = 
+  ( c (XSExpr p)
+  , c (XSDecl p)
+  , c (XSWhile p)
+  , c (XSReturn p)
+  , c (XSFunc p)
+  )
+
+type ForAllX (c :: Kind.Type -> Constraint) p = 
+  ( ForAllExprX c p
+  , ForAllStmtX c p
+  , c (XBlock p)
+  , c (XProg p)
+  )
+
+{- Automatically derive instances from underlying -}
+deriving instance (Show n, ForAllX Show p) => Show (Expr n p)
+deriving instance (Show n, ForAllX Show p) => Show (Stmt n p)
+deriving instance (Show n, ForAllX Show p) => Show (Block n p)
+deriving instance (Show n, ForAllX Show p) => Show (Prog n p)
+
+deriving instance (Eq n, ForAllX Eq p) => Eq (Expr n p)
+deriving instance (Eq n, ForAllX Eq p) => Eq (Stmt n p)
+deriving instance (Eq n, ForAllX Eq p) => Eq (Block n p)
+deriving instance (Eq n, ForAllX Eq p) => Eq (Prog n p)
+
+
+{- Multiplate -}
+data Plate n (p :: Pass) f = Plate
+    { pProg :: Prog n p -> f (Prog n p)
+    , pBlock :: Block n p -> f (Block n p)
+    , pStmt :: Stmt n p -> f (Stmt n p)
+    , pExpr :: Expr n p -> f (Expr n p)
     , pVar :: Var n -> f (Var n)
-    , pType :: Type -> f Type
     , pBinOp :: BinOp -> f BinOp
     , pUnOp :: UnOp -> f UnOp
     }
 
-instance Multiplate (Plate n) where
-    multiplate :: forall f. Applicative f => Plate n f -> Plate n f
-    multiplate Plate{..} = Plate buildProg buildBlock buildStmt buildExpr buildVar buildType buildBinOp buildUnOp
+instance Multiplate (Plate n p) where
+    multiplate :: forall f. Applicative f => Plate n p f -> Plate n p f
+    multiplate Plate{..} = Plate buildProg buildBlock buildStmt buildExpr buildVar buildBinOp buildUnOp
       where
-        buildProg :: Prog n -> f (Prog n)
-        buildProg (Globals ss) = Globals <$> (pStmt `traverse` ss)
+        buildProg :: Prog n p -> f (Prog n p)
+        buildProg (Globals x ss) = Globals x <$> (pStmt `traverse` ss)
 
-        buildBlock :: Block n -> f (Block n)
-        buildBlock (Block stmts) = Block <$> (pStmt `traverse` stmts)
+        buildBlock :: Block n p -> f (Block n p)
+        buildBlock (Block x stmts) = Block x <$> (pStmt `traverse` stmts)
 
-        buildStmt :: Stmt n -> f (Stmt n)
-        buildStmt (SExpr e) = SExpr <$> pExpr e
-        buildStmt (SDecl{..}) = SDecl <$> pVar declName <*> pType declT <*> pExpr declV
-        buildStmt (SWhile{..}) = SWhile <$> pExpr whileCond <*> pBlock whileBody
-        buildStmt (SReturn e) = SReturn <$> pExpr e
-        buildStmt (SFunc{..}) = SFunc <$> pVar fName <*> (pVar `traverse` fParams) <*> pType fType <*> pBlock fBody
+        buildStmt :: Stmt n p -> f (Stmt n p)
+        buildStmt (SExpr x e) = SExpr x <$> pExpr e
+        buildStmt (SDecl{..}) = SDecl declExt <$> pVar declName <*> pExpr declV
+        buildStmt (SWhile{..}) = SWhile whileExt <$> pExpr whileCond <*> pBlock whileBody
+        buildStmt (SReturn x e) = SReturn x <$> pExpr e
+        buildStmt (SFunc{..}) = SFunc fExt <$> pVar fName <*> (pVar `traverse` fParams) <*> pBlock fBody
 
-        buildExpr :: Expr n -> f (Expr n)
-        buildExpr (EUnOp{..}) = EUnOp unOp <$> pExpr unRHS
-        buildExpr (EBinOp{..}) = EBinOp binOp <$> pExpr binLHS <*> pExpr binRHS
-        buildExpr (EVar v) = EVar <$> pVar v
-        buildExpr (ECall{..}) = ECall <$> pVar callFunc <*> (pExpr `traverse` callArgs)
-        buildExpr (EAssign{..}) = EAssign <$> pVar assignVar <*> pExpr assignVal
-        buildExpr (EBlock b) = EBlock <$> pBlock b
-        buildExpr (EIf{..}) = EIf <$> pExpr ifCond <*> pBlock ifBody <*> (pBlock `traverse` ifElseMb)
+        buildExpr :: Expr n p -> f (Expr n p)
+        buildExpr (EUnOp{..}) = EUnOp unExt unOp <$> pExpr unRHS
+        buildExpr (EBinOp{..}) = EBinOp binExt binOp <$> pExpr binLHS <*> pExpr binRHS
+        buildExpr (EVar x v) = EVar x <$> pVar v
+        buildExpr (ECall{..}) = ECall callExt <$> pVar callFunc <*> (pExpr `traverse` callArgs)
+        buildExpr (EAssign{..}) = EAssign assignExt <$> pVar assignVar <*> pExpr assignVal
+        buildExpr (EBlock x b) = EBlock x <$> pBlock b
+        buildExpr (EIf{..}) = EIf ifExt <$> pExpr ifCond <*> pBlock ifBody <*> (pBlock `traverse` ifElseMb)
         buildExpr v = pure v
-
-        buildType :: Type -> f Type
-        buildType (TCallable{..}) = TCallable <$> (pType `traverse` paramT) <*> pType returnT
-        buildType t = pure t
 
         buildBinOp :: BinOp -> f BinOp
         buildBinOp = pure
@@ -118,6 +177,5 @@ instance Multiplate (Plate n) where
             (build pStmt)
             (build pExpr)
             (build pVar)
-            (build pType)
             (build pBinOp)
             (build pUnOp)
