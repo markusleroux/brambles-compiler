@@ -91,6 +91,7 @@ test-suite unit-test
         , Parser.Gen
         , Parser.Prop
         , Symbolizer.Unit
+        , Util
 
     build-depends:
           parsec           ^>=3.1.17.0

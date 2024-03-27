@@ -1,6 +1,7 @@
 module Parser.Unit where
 
 import AST
+import Util
 import Parser
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -12,15 +13,12 @@ parsingTests =
         "Parsing"
         [ typeTests
         , exprTests
-        , blockTests
         , fnTests
         , programTests
         ]
 
-testParser :: Parser a -> String -> a
-testParser parser code = case parse parser "" code of
-    Right e -> e
-    Left err -> error $ show err
+testParser :: Parser a -> (a -> b) -> String -> b
+testParser parser toVoid = either (error . show) id . parse (toVoid <$> parser) ""
 
 typeTests :: TestTree
 typeTests =
@@ -43,46 +41,43 @@ typeTests =
                 @?= TCallable [TInt] (TCallable [TInt] TBool)
         ]
   where
-    testTypeParser = testParser typeP
+    testTypeParser = testParser typeP id
 
 exprTests :: TestTree
 exprTests =
     testGroup
         "Basic expression parsing"
-        [ testCase "Integer literal" $ testSExprParser "3" @?= EIntLit SourceLoc 3
-        , testCase "Float literal" $ testSExprParser "3.0" @?= EFloatLit SourceLoc 3.0
+        [ testCase "Integer literal" $ testSExprParser "3" @?= EIntLit () 3
+        , testCase "Float literal" $ testSExprParser "3.0" @?= EFloatLit () 3.0
         , testCase "Call" $
             testSExprParser "function(3, 4)"
-                @?= ECall SourceLoc (V "function") [EIntLit SourceLoc 3, EIntLit SourceLoc 4]
+                @?= ECall () (EVar () $ V "function") [EIntLit () 3, EIntLit () 4]
         , testCase "Call" $
             testSExprParser "aw(ch(-1.0, 0.0) - 2)"
-                @?= ECall SourceLoc (V "aw") [EBinOp SourceLoc Sub (ECall SourceLoc (V "ch") [EUnOp SourceLoc Neg $ EFloatLit SourceLoc 1.0, EFloatLit SourceLoc 0.0]) (EIntLit SourceLoc 2)]
-        , testCase "Variable" $ testSExprParser "abc" @?= EVar SourceLoc (V "abc")
+                @?= ECall () (EVar () $ V "aw") [ EBinOp () Sub 
+                      (ECall () (EVar () $ V "ch") [EUnOp () Neg $ EFloatLit () 1.0, EFloatLit () 0.0]) 
+                      (EIntLit () 2)
+                      ]
+        , testCase "Variable" $ testSExprParser "abc" @?= EVar () (V "abc")
         , -- Binary operators
-          testCase "Addition" $ testSExprParser "3 + 2" @?= EBinOp SourceLoc Add (EIntLit SourceLoc 3) (EIntLit SourceLoc 2)
+          testCase "Addition" $ testSExprParser "3 + 2" @?= EBinOp () Add (EIntLit () 3) (EIntLit () 2)
         , testCase "Addition (braces)" $
             testSExprParser "3 + (2 - 5)"
-                @?= EBinOp SourceLoc Add (EIntLit SourceLoc 3) (EBinOp SourceLoc Sub (EIntLit SourceLoc 2) (EIntLit SourceLoc 5))
-        , testCase "Subtraction" $ testSExprParser "3 - 2" @?= EBinOp SourceLoc Sub (EIntLit SourceLoc 3) (EIntLit SourceLoc 2)
-        , testCase "Multiplication" $ testSExprParser "3 * 2" @?= EBinOp SourceLoc Mult (EIntLit SourceLoc 3) (EIntLit SourceLoc 2)
-        , testCase "Division" $ testSExprParser "3 / 2" @?= EBinOp SourceLoc Div (EIntLit SourceLoc 3) (EIntLit SourceLoc 2)
-        , testCase "Division (no spaces)" $ testSExprParser "3/2" @?= EBinOp SourceLoc Div (EIntLit SourceLoc 3) (EIntLit SourceLoc 2)
-        , testCase "EAssignment" $ testSExprParser "x = 2" @?= EAssign SourceLoc (V "x") (EIntLit SourceLoc 2)
+                @?= EBinOp () Add (EIntLit () 3) (EBinOp () Sub (EIntLit () 2) (EIntLit () 5))
+        , testCase "Subtraction" $ testSExprParser "3 - 2" @?= EBinOp () Sub (EIntLit () 3) (EIntLit () 2)
+        , testCase "Multiplication" $ testSExprParser "3 * 2" @?= EBinOp () Mult (EIntLit () 3) (EIntLit () 2)
+        , testCase "Division" $ testSExprParser "3 / 2" @?= EBinOp () Div (EIntLit () 3) (EIntLit () 2)
+        , testCase "Division (no spaces)" $ testSExprParser "3/2" @?= EBinOp () Div (EIntLit () 3) (EIntLit () 2)
+        , testCase "EAssignment" $ testSExprParser "x = 2" @?= EAssign () (V "x") (EIntLit () 2)
         , testCase "Precedence" $
-            testSExprParser "x = y + 5.0" @?= EAssign SourceLoc (V "x") (EBinOp SourceLoc Add (EVar SourceLoc (V "y")) (EFloatLit SourceLoc 5.0))
+            testSExprParser "x = y + 5.0" @?= EAssign () (V "x") (EBinOp () Add (EVar () (V "y")) (EFloatLit () 5.0))
+        , testCase "Basic block" $ testSExprParser "{ }" @?= EBlock (Block () [] Nothing)
+        , testCase "EAssignment in block" $ 
+            testSExprParser "{ x = 3; }" 
+              @?= EBlock (Block () [SExpr () $ EAssign () (V "x") (EIntLit () 3)] Nothing)
         ]
   where
-    testSExprParser = testParser exprP
-
-blockTests :: TestTree
-blockTests =
-    testGroup
-        "Basic block parsing"
-        [ testCase "Basic block" $ testBlockParser "{ }" @?= Block SourceLoc []
-        , testCase "EAssignment in block" $ testBlockParser "{ x = 3; }" @?= Block SourceLoc [SExpr SourceLoc $ EAssign SourceLoc (V "x") (EIntLit SourceLoc 3)]
-        ]
-  where
-    testBlockParser = testParser blockP
+    testSExprParser = testParser exprP undecExpr
 
 fnTests :: TestTree
 fnTests =
@@ -90,52 +85,51 @@ fnTests =
         "Basic fn tests"
         [ testCase "Empty" $
             testFnParser "fn function() -> int {};"
-                @?= SFunc
-                    { fExt = (SourceLoc, TCallable [] TInt)
-                    , fName = V "function"
-                    , fParams = []
-                    , fBody = Block SourceLoc []
+                @?= EFunc
+                    { funcX = (SourceLoc, TCallable [] TInt)
+                    , funcName = V "function"
+                    , funcParams = []
+                    , funcBody = Block SourceLoc [] Nothing
                     }
         , testCase "One argument" $
             testFnParser "fn function(a: int) -> int {};"
-                @?= SFunc
-                    { fExt = (SourceLoc, TCallable [TInt] TInt)
-                    , fName = V "function"
-                    , fParams = [V "a"]
-                    , fBody = Block SourceLoc []
+                @?= EFunc
+                    { funcX = (SourceLoc, TCallable [TInt] TInt)
+                    , funcName = V "function"
+                    , funcParams = [V "a"]
+                    , funcBody = Block SourceLoc [] Nothing
                     }
         , testCase "Multiple argument" $
             testFnParser "fn function(a: int, b: float) -> float {};"
-                @?= SFunc
-                    { fExt = (SourceLoc, TCallable [TInt, TFloat] TFloat)
-                    , fName = V "function"
-                    , fParams = [V "a", V "b"]
-                    , fBody = Block SourceLoc []
+                @?= EFunc
+                    { funcX = (SourceLoc, TCallable [TInt, TFloat] TFloat)
+                    , funcName = V "function"
+                    , funcParams = [V "a", V "b"]
+                    , funcBody = Block SourceLoc [] Nothing
                     }
         , testCase "Small body" $
             testFnParser "fn function(a: int, b: float) -> float { x = 3; };"
-                @?= SFunc
-                    { fExt = (SourceLoc, TCallable [TInt, TFloat] TFloat)
-                    , fName = V "function"
-                    , fParams = [V "a", V "b"]
-                    , fBody = Block SourceLoc [SExpr SourceLoc (EAssign SourceLoc (V "x") (EIntLit SourceLoc 3))]
+                @?= EFunc
+                    { funcX = (SourceLoc, TCallable [TInt, TFloat] TFloat)
+                    , funcName = V "function"
+                    , funcParams = [V "a", V "b"]
+                    , funcBody = Block SourceLoc [SExpr SourceLoc (EAssign SourceLoc (V "x") (EIntLit SourceLoc 3))] Nothing
                     }
         , testCase "Medium body" $
             testFnParser "fn function(a: int, b: float) -> float { x; let y: float = 3 * 10.0; a = 4; };"
-                @?= SFunc
-                    { fExt = (SourceLoc, TCallable [TInt, TFloat] TFloat)
-                    , fName = V "function"
-                    , fParams = [V "a", V "b"]
-                    , fBody =
-                        Block SourceLoc 
-                            [ SExpr SourceLoc (EVar SourceLoc (V "x"))
-                            , SDecl (SourceLoc, TFloat) (V "y") (EBinOp SourceLoc Mult (EIntLit SourceLoc 3) (EFloatLit SourceLoc 10.0))
-                            , SExpr SourceLoc $ EAssign SourceLoc (V "a") (EIntLit SourceLoc 4)
-                            ]
+                @?= EFunc
+                    { funcX = (SourceLoc, TCallable [TInt, TFloat] TFloat)
+                    , funcName = V "function"
+                    , funcParams = [V "a", V "b"]
+                    , funcBody = Block SourceLoc
+                          [ SExpr SourceLoc (EVar SourceLoc (V "x"))
+                          , SDecl (SourceLoc, TFloat) (V "y") (EBinOp SourceLoc Mult (EIntLit SourceLoc 3) (EFloatLit SourceLoc 10.0))
+                          , SExpr SourceLoc $ EAssign SourceLoc (V "a") (EIntLit SourceLoc 4)
+                          ] Nothing
                     }
         ]
   where
-    testFnParser = testParser statementP
+    testFnParser = testParser exprP id
 
 programTests :: TestTree
 programTests =
@@ -146,13 +140,13 @@ programTests =
             testProgramParser "let x: int = 3; fn test(y: float) -> int { z = 5; };"
                 @?= Globals SourceLoc
                     [ SDecl (SourceLoc, TInt) (V "x") (EIntLit SourceLoc 3)
-                    , SFunc
-                        { fExt = (SourceLoc, TCallable [TFloat] TInt)
-                        , fName = V "test"
-                        , fParams = [V "y"]
-                        , fBody = Block SourceLoc [SExpr SourceLoc $ EAssign SourceLoc (V "z") (EIntLit SourceLoc 5)]
+                    , SExpr SourceLoc $ EFunc
+                        { funcX = (SourceLoc, TCallable [TFloat] TInt)
+                        , funcName = V "test"
+                        , funcParams = [V "y"]
+                        , funcBody = Block SourceLoc [SExpr SourceLoc $ EAssign SourceLoc (V "z") (EIntLit SourceLoc 5)] Nothing
                         }
                     ]
         ]
   where
-    testProgramParser = testParser programP
+    testProgramParser = testParser programP id

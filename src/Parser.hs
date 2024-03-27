@@ -1,4 +1,3 @@
-{-# LANGUAGE StandaloneDeriving #-}
 module Parser where
 
 import AST
@@ -16,6 +15,7 @@ import Lexer (
     fn,
     identifier,
     ifLex,
+    thenLex,
     integerType,
     lexer,
     natural,
@@ -26,6 +26,8 @@ import Lexer (
     spaceConsumer,
     while,
  )
+
+import Text.Parsec.String (Parser)
 import Text.Parsec (
     eof,
     many,
@@ -35,7 +37,6 @@ import Text.Parsec (
     (<|>),
  )
 import qualified Text.Parsec.Expr as Expr
-import Text.Parsec.String (Parser)
 import qualified Text.Parsec.Token as Tok
 
 data SourceLoc = SourceLoc
@@ -49,44 +50,58 @@ type instance XEUnOp 'Parsed = SourceLoc
 type instance XEBinOp 'Parsed = SourceLoc
 type instance XECall 'Parsed = SourceLoc
 type instance XEAssign 'Parsed = SourceLoc
-type instance XEBlock 'Parsed = SourceLoc
 type instance XEIf 'Parsed = SourceLoc
+type instance XEFunc 'Parsed = (SourceLoc, Type)
 
 type instance XSExpr 'Parsed = SourceLoc
 type instance XSDecl 'Parsed = (SourceLoc, Type)
 type instance XSWhile 'Parsed = SourceLoc
 type instance XSReturn 'Parsed = SourceLoc
-type instance XSFunc 'Parsed = (SourceLoc, Type)
 
 type instance XBlock 'Parsed = SourceLoc
-
 type instance XProg 'Parsed = SourceLoc
 
 
 typeP :: Parser Type
-typeP =
-    TInt <$ integerType
-        <|> TFloat <$ floatType
-        <|> TBool <$ boolType
-        <|> (TCallable <$> parens (commas typeP) <*> (returnArrow *> typeP))
-        <?> "type"
+typeP = integerP <|> floatP <|> boolP <|> callableP <?> "type"
+  where
+    integerP  = TInt      <$  integerType
+    floatP    = TFloat    <$  floatType
+    boolP     = TBool     <$  boolType
+    callableP = TCallable <$> parens (commas typeP) <*> (returnArrow *> typeP)
 
 varP :: Parser (Var Name)
 varP = V <$> identifier
 
+blockP :: Parser (Block Name 'Parsed)
+blockP = braces $ Block  SourceLoc <$> many (try statementP) <*> optionMaybe exprP
+
 exprP :: Parser (Expr Name 'Parsed)
-exprP = Expr.buildExpressionParser table factorP <?> "expression"
+exprP = 
+  let
+    factorP 
+        = try floatLitP
+      <|> try intLitP
+      <|> try boolLitP
+      <|> try callP
+      <|> try assignP
+      <|> try evarP
+      <|> eblockP
+      <|> functionP
+      <|> ifP
+      <|> parens exprP
+  in
+    Expr.buildExpressionParser table factorP <?> "expression"
   where
-    factorP =
-        try (EFloatLit SourceLoc <$> float)
-            <|> try (EIntLit SourceLoc <$> natural)
-            <|> try (EBoolLit SourceLoc <$> bool)
-            <|> try (ECall SourceLoc <$> varP <*> parens (commas exprP))
-            <|> try (EAssign SourceLoc <$> (varP <* assignment) <*> exprP)
-            <|> try (EVar SourceLoc <$> varP)
-            <|> try (EBlock SourceLoc <$> blockP)
-            <|> try ifP
-            <|> parens exprP
+    floatLitP = EFloatLit SourceLoc <$> float
+    intLitP   = EIntLit   SourceLoc <$> natural
+    boolLitP  = EBoolLit  SourceLoc <$> bool
+
+    callP   = ECall   SourceLoc <$> (evarP <|> parens exprP) <*> parens (commas exprP)
+    assignP = EAssign SourceLoc <$> (varP <* assignment) <*> exprP
+    evarP   = EVar    SourceLoc <$> varP
+    eblockP = EBlock            <$> blockP
+    ifP     = EIf     SourceLoc <$> (ifLex *> exprP) <*> (thenLex *> blockP) <*> optionMaybe (elseLex *> blockP)
 
     table =
         [ [unaryOp "-" Neg, unaryOp "+" Pos]
@@ -95,42 +110,38 @@ exprP = Expr.buildExpressionParser table factorP <?> "expression"
         , [binaryOp "==" Eq Expr.AssocLeft]
         ]
       where
-        unaryOp name op = Expr.Prefix $ EUnOp SourceLoc op <$ Tok.reservedOp lexer name
+        unaryOp  name op = Expr.Prefix $ EUnOp SourceLoc op <$ Tok.reservedOp lexer name
         binaryOp name op = Expr.Infix $ EBinOp SourceLoc op <$ Tok.reservedOp lexer name
 
-    ifP = EIf SourceLoc <$> (ifLex *> parens exprP) <*> blockP <*> optionMaybe (elseLex *> blockP)
-
--- statement is an expr or a declaration followed by a semi-colon
-statementP :: Parser (Stmt Name 'Parsed)
-statementP = stmtP <* semicolon
-  where
-    stmtP =
-        declP
-            <|> (SExpr SourceLoc <$> exprP)
-            <|> whileP
-            <|> returnP
-            <|> functionP
-            <?> "statement"
-
-    declP = do
-      var <- decl *> varP
-      type_ <- colon *> typeP
-      SDecl (SourceLoc, type_) var <$> (assignment *> exprP)
-    whileP = SWhile SourceLoc <$> (while *> exprP) <*> blockP
-    returnP = SReturn SourceLoc <$> (ret *> exprP)
-
     -- fn name(t0 arg0, ...) -> returnType { ... }
-    functionP :: Parser (Stmt Name 'Parsed)
     functionP = do
         name <- fn *> varP
         (vars, params) <- unzip <$> parens (commas varAndTypeP)
         returns <- returnArrow *> typeP
-        SFunc (SourceLoc, TCallable params returns) name vars  <$> blockP
+        EFunc (SourceLoc, TCallable params returns) name vars <$> blockP
       where
         varAndTypeP = (,) <$> (varP <* colon) <*> typeP
 
-blockP :: Parser (Block Name 'Parsed)
-blockP = braces $ Block SourceLoc <$> many statementP
+statementP :: Parser (Stmt Name 'Parsed)
+statementP = 
+  let
+    stmtP = declP <|> sExprP <|> whileP <|> returnP <?> "statement"
+  in
+    stmtP <* semicolon
+  where
+    sExprP = SExpr SourceLoc <$> exprP
+    whileP = SWhile SourceLoc <$> (while *> exprP) <*> bracedStmtsP
+    declP = do
+      var <- decl *> varP
+      type_ <- colon *> typeP
+      SDecl (SourceLoc, type_) var <$> (assignment *> exprP)
+    returnP = SReturn SourceLoc <$> (ret *> exprP)
+
+
+bracedStmtsP :: Parser [Stmt Name 'Parsed]
+bracedStmtsP = braces $ many statementP
 
 programP :: Parser (Prog Name 'Parsed)
-programP = Globals SourceLoc <$> (spaceConsumer *> many statementP <* eof)
+programP = let stmtsP = spaceConsumer *> many statementP <* eof
+  in Globals SourceLoc <$> stmtsP
+
