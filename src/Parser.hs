@@ -62,6 +62,7 @@ type instance XBlock 'Parsed = SourceLoc
 
 type instance XProg 'Parsed = SourceLoc
 
+
 typeP :: Parser Type
 typeP =
     TInt <$ integerType
@@ -124,7 +125,7 @@ statementP = stmtP <* semicolon
         name <- fn *> varP
         (vars, params) <- unzip <$> parens (commas varAndTypeP)
         returns <- returnArrow *> typeP
-        SFunc (SourceLoc, (TCallable params returns)) name vars  <$> blockP
+        SFunc (SourceLoc, TCallable params returns) name vars  <$> blockP
       where
         varAndTypeP = (,) <$> (varP <* colon) <*> typeP
 
