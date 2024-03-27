@@ -58,34 +58,30 @@ class (ThrowsSymbolizeException m, MonadScoping m) => MonadSymbolize m sym where
 renameProg :: MonadSymbolize m sym => Prog Name 'Parsed -> m (Prog sym 'Parsed)
 renameProg (Globals x gs) = Globals x <$> mapM renameStmt gs
 
-renameBlock :: MonadSymbolize m sym => Block Name 'Parsed -> m (Block sym 'Parsed)
-renameBlock (Block x gs) = Block x <$> mapM renameStmt gs
-
 renameStmt :: MonadSymbolize m sym => Stmt Name 'Parsed -> m (Stmt sym 'Parsed)
-renameStmt (SExpr x e) = SExpr x <$> renameExpr e
-renameStmt SDecl{..} = SDecl declExt <$> mapM createSym declName <*> renameExpr declV -- TODO: careful of recursive definitions
-renameStmt SWhile{..} = SWhile whileExt <$> renameExpr whileCond <*> renameBlock whileBody
-renameStmt (SReturn x e) = SReturn x <$> renameExpr e
-renameStmt SFunc{..} = do
-  u <- mapM createSym fName -- function symbol will be available inside function (recursion)
-  (args, body) <- withScope $ do
-      args <- mapM (mapM createSym) fParams
-      body <- renameBlock fBody
-      return (args, body)
-
-  return $ SFunc fExt u args body
+renameStmt SExpr{..}   = SExpr exprX     <$> renameExpr exprExpr
+renameStmt SDecl{..}   = SDecl declX     <$> mapM createSym declName <*> renameExpr declExpr -- TODO: careful of recursive definitions
+renameStmt SWhile{..}  = SWhile whileX   <$> renameExpr whilePred <*> withScope (mapM renameStmt whileBody)
+renameStmt SReturn{..} = SReturn returnX <$> renameExpr returnExpr
 
 renameExpr :: MonadSymbolize m sym => Expr Name 'Parsed -> m (Expr sym 'Parsed)
-renameExpr (EIntLit x v) = pure $ EIntLit x v
-renameExpr (EFloatLit x v) = pure $ EFloatLit x v
-renameExpr (EBoolLit x v) = pure $ EBoolLit x v
-renameExpr (EVar x v) = EVar x <$> mapM getSym v
-renameExpr EUnOp{..} = EUnOp unExt unOp <$> renameExpr unRHS
-renameExpr EBinOp{..} = EBinOp binExt binOp <$> renameExpr binLHS <*> renameExpr binRHS
-renameExpr ECall{..} = ECall callExt <$> mapM getSym callFunc <*> mapM renameExpr callArgs
-renameExpr EAssign{..} = EAssign assignExt <$> mapM getSym assignVar <*> renameExpr assignVal
-renameExpr (EBlock x b) = EBlock x <$> withScope (renameBlock b)
-renameExpr EIf{..} = EIf ifExt <$> renameExpr ifCond <*> renameBlock ifBody <*> mapM renameBlock ifElseMb
+renameExpr EIntLit{..}   = pure $ EIntLit   intLitX   intLitVal
+renameExpr EFloatLit{..} = pure $ EFloatLit floatLitX floatLitVal
+renameExpr EBoolLit{..}  = pure $ EBoolLit  boolLitX  boolLitVal
+renameExpr EVar{..}      = EVar varX         <$> mapM getSym varVar
+renameExpr EUnOp{..}     = EUnOp unX unOp    <$> renameExpr unRHS
+renameExpr EBinOp{..}    = EBinOp binX binOp <$> renameExpr binLHS <*> renameExpr binRHS
+-- renameExpr ECall{..}     = ECall callX       <$> mapM getSym callName <*> mapM renameExpr callArgs  -- TODO: how to do lookup?
+renameExpr EAssign{..}   = EAssign assignX   <$> mapM getSym assignVar <*> renameExpr assignExpr
+renameExpr EIf{..}       = EIf ifX           <$> renameExpr ifPred <*> renameExpr ifThen <*> mapM renameExpr ifElseMb
+renameExpr EBlock{..}    = withScope $ EBlock blockX <$> (mapM renameStmt blockBody) <*> (mapM renameExpr blockResult)
+renameExpr EFunc{..} = do
+  u <- mapM createSym funcName -- function symbol will be available inside function (recursion)
+  (args, body) <- withScope $ do
+      args <- mapM (mapM createSym) funcParams
+      body <- mapM renameStmt funcBody
+      return (args, body)
+  pure $ EFunc funcX u args body
 
 
 {- 

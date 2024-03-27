@@ -45,42 +45,40 @@ genExpr :: Gen (AST.Expr AST.Name 'AST.Parsed)
 genExpr =
     Gen.recursive
         Gen.choice
-        [ AST.EIntLit SourceLoc <$> Gen.integral_ intRange
+        [ AST.EIntLit   SourceLoc <$> Gen.integral_ intRange
         , AST.EFloatLit SourceLoc <$> Gen.double floatRange
-        , AST.EBoolLit SourceLoc <$> Gen.bool
-        , AST.EVar SourceLoc <$> genVar
+        , AST.EBoolLit  SourceLoc <$> Gen.bool
+        , AST.EVar      SourceLoc <$> genVar
         ]
-        [ AST.EUnOp SourceLoc <$> genUnOp <*> genExpr
-        , AST.EBinOp SourceLoc <$> genBinOp <*> genExpr <*> genExpr
-        , AST.ECall SourceLoc <$> genVar <*> Gen.list paramRange genExpr
-        , AST.EAssign SourceLoc <$> genVar <*> genExpr
-        , AST.EBlock SourceLoc <$> genBlock
+        [ AST.EUnOp     SourceLoc <$> genUnOp <*> genExpr
+        , AST.EBinOp    SourceLoc <$> genBinOp <*> genExpr <*> genExpr
+        , AST.ECall     SourceLoc <$> (AST.EVar SourceLoc <$> genVar) <*> Gen.list paramRange genExpr  -- for now, only var name
+        , AST.EAssign   SourceLoc <$> genVar <*> genExpr
+        , AST.EBlock    SourceLoc <$> Gen.list blockLen genStmt <*> Gen.maybe genExpr
+        , genFunction
         -- TODO: if
         ]
+    where
+      genFunction :: Gen (AST.Expr AST.Name 'AST.Parsed)
+      genFunction = do
+          (params, paramTs) <- unzip <$> Gen.list paramRange ((,) <$> genVar <*> genType)
+          let genCallable = AST.TCallable paramTs <$> genType
+          let genLocAndCallable = (,) SourceLoc <$> genCallable
+          AST.EFunc <$> genLocAndCallable <*> genVar <*> pure params <*> Gen.list blockLen genStmt
 
 genStmt :: Gen (AST.Stmt AST.Name 'AST.Parsed)
 genStmt =
-    Gen.frequency
-        [ (10, AST.SExpr SourceLoc <$> genExpr)
-        , (10, AST.SDecl <$> genLocAndType <*> genVar <*> genExpr)
-        , (10, AST.SReturn SourceLoc <$> genExpr)
-        , (3, genFunction)
+    Gen.choice
+        [ AST.SExpr SourceLoc <$> genExpr
+        , AST.SDecl <$> genLocAndType <*> genVar <*> genExpr
         -- TODO: while
+        , AST.SReturn SourceLoc <$> genExpr
         ]
   where
     genLocAndType = (,) SourceLoc <$> genType
 
-    genFunction :: Gen (AST.Stmt AST.Name 'AST.Parsed)
-    genFunction = do
-        (params, paramTs) <- unzip <$> Gen.list paramRange ((,) <$> genVar <*> genType)
-        let genCallable = AST.TCallable paramTs <$> genType
-        let genLocAndCallable = (,) SourceLoc <$> genCallable
-        AST.SFunc <$> genLocAndCallable <*> genVar <*> pure params <*> genBlock
-
-genBlock :: Gen (AST.Block AST.Name 'AST.Parsed)
-genBlock = AST.Block SourceLoc <$> Gen.list blockLen genStmt
-
 genProgram :: Gen (AST.Prog AST.Name 'AST.Parsed)
-genProgram = AST.Globals SourceLoc <$> genStatements
-  where
-    genStatements = Gen.list progStmtRange genStmt
+genProgram = 
+  let genStatements = Gen.list progStmtRange genStmt
+  in AST.Globals SourceLoc <$> genStatements
+    

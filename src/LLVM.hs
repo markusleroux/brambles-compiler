@@ -89,7 +89,7 @@ exprToLLVM (AST.EUnOp (_, t) op v) = case op of
 exprToLLVM (AST.EBinOp (_, t) op e1 e2) = join $ binOpToLLVM t op <$> exprToLLVM e1 <*> exprToLLVM e2
 exprToLLVM (AST.ECall _ _ _) = undefined
 exprToLLVM (AST.EAssign _ _ _) = undefined
-exprToLLVM (AST.EBlock _ b) = blockToLLVM b
+exprToLLVM (AST.EBlock _ _ b) = undefined
 {-
 exprToLLVM AST.EIf{..} = mdo
     pred <- exprToLLVM ifCond
@@ -110,6 +110,7 @@ exprToLLVM AST.EIf{..} = mdo
     -- terminator already exists in block, LLVM disallows branch
     mkTerminator = unless =<< LLVM.hasTerminator
 -}
+exprToLLVM (AST.EFunc _ _ _ _) = undefined
 
 stmtToLLVM :: LLVM.MonadIRBuilder m => AST.Stmt n 'AST.Typed -> m ()
 stmtToLLVM (AST.SExpr _ e) = void $ exprToLLVM e
@@ -118,10 +119,6 @@ stmtToLLVM (AST.SWhile _ _ _) = undefined
 stmtToLLVM (AST.SReturn (_, t) e) = case t of
   AST.TUnit -> LLVM.retVoid  -- TODO: unit vs void?
   _ -> LLVM.ret =<< exprToLLVM e
-stmtToLLVM (AST.SFunc _ _ _ _) = undefined
-
-blockToLLVM :: LLVM.MonadIRBuilder m => AST.Block n 'AST.Typed -> m LLVM.Operand
-blockToLLVM = undefined
 
 progToLLVM :: LLVM.MonadIRBuilder m => AST.Prog n 'AST.Typed -> m ()
 progToLLVM (AST.Globals _ stmts) = mapM_ stmtToLLVM stmts
