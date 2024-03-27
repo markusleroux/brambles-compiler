@@ -11,16 +11,16 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Parser (SourceLoc(..))
 
-nestedBlock =
+nestedBlock :: [Stmt Name 'Parsed]
+nestedBlock = 
     [ SDecl (SourceLoc, TInt) (V "x") (EIntLit SourceLoc 3)
     , SExpr SourceLoc (EVar SourceLoc $ V "x")
-    , SExpr SourceLoc 
-        ( EBlock SourceLoc 
-            [ SDecl (SourceLoc, TInt) (V "x") (EIntLit SourceLoc 3)
-            , SExpr SourceLoc (EVar SourceLoc $ V "x")
-            ]
-            Nothing
-        )
+    , SExpr SourceLoc (EBlock (Block SourceLoc 
+        [ SDecl (SourceLoc, TInt) (V "x") (EIntLit SourceLoc 3)
+        , SExpr SourceLoc (EVar SourceLoc $ V "x")
+        ]
+        Nothing
+    ))
     , SExpr SourceLoc (EVar SourceLoc $ V "x")
     ]
 
@@ -35,19 +35,19 @@ blockTests =
     testGroup
         "Block"
         [ testCase "Decl" $ 
-            testBlock (EBlock SourceLoc [SDecl (SourceLoc, TInt) (V "x") (EIntLit SourceLoc 3)] Nothing) [0]
+            testBlock (EBlock (Block SourceLoc [SDecl (SourceLoc, TInt) (V "x") (EIntLit SourceLoc 3)] Nothing)) [0]
         , testCase "Two Decl" $ 
-            testBlock (EBlock SourceLoc 
+            testBlock (EBlock (Block SourceLoc 
               [ SDecl (SourceLoc, TInt) (V "x") (EIntLit SourceLoc 3)
               , SDecl (SourceLoc, TInt) (V "y") (EIntLit SourceLoc 3)
-              ] Nothing) [0, 1]
+              ] Nothing)) [0, 1]
         , testCase "Two Decl and Var" $ 
-            testBlock (EBlock SourceLoc 
+            testBlock (EBlock (Block SourceLoc 
               [ SDecl (SourceLoc, TInt) (V "x") (EIntLit SourceLoc 3)
               , SDecl (SourceLoc, TInt) (V "y") (EIntLit SourceLoc 3)
               , SExpr SourceLoc (EVar SourceLoc (V "x"))
-              ] Nothing) [0, 1, 0]
-        , testCase "Nested Blocks" $ testBlock (EBlock SourceLoc nestedBlock Nothing) [0, 0, 1, 1, 0]
+              ] Nothing)) [0, 1, 0]
+        , testCase "Nested Blocks" $ testBlock (EBlock (Block SourceLoc nestedBlock Nothing)) [0, 0, 1, 1, 0]
         ]
   where
     testBlock = testRenameExpr
@@ -61,7 +61,7 @@ funcTests =
                     { funcX = (SourceLoc, TCallable [] TInt)
                     , funcName = V "func"
                     , funcParams = []
-                    , funcBody = []
+                    , funcBody = Block SourceLoc [] Nothing
                     }
                 [0] -- recursion!
         , testCase "param binding" $
@@ -70,10 +70,10 @@ funcTests =
                     { funcX = (SourceLoc, TCallable [TInt, TInt] TInt)
                     , funcName = V "func"
                     , funcParams = [V "a", V "b"]
-                    , funcBody = [ SDecl (SourceLoc, TInt) (V "a") (EIntLit SourceLoc 3)
+                    , funcBody = Block SourceLoc [ SDecl (SourceLoc, TInt) (V "a") (EIntLit SourceLoc 3)
                                  , SExpr SourceLoc (EVar SourceLoc (V "a"))
                                  , SExpr SourceLoc (EVar SourceLoc (V "b"))
-                                 ]
+                                 ] Nothing
                     }
                 [0, 1, 2, 3, 3, 2]
         , testCase "nested block" $
@@ -82,7 +82,7 @@ funcTests =
                     { funcX = (SourceLoc, TCallable [TInt, TInt] TInt)
                     , funcName = V "func"
                     , funcParams = [V "a", V "b"]
-                    , funcBody = nestedBlock
+                    , funcBody = Block SourceLoc nestedBlock Nothing
                     }
                 [0, 1, 2, 3, 3, 4, 4, 3]
         ]

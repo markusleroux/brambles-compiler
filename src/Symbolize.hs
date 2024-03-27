@@ -71,18 +71,20 @@ renameExpr EBoolLit{..}  = pure $ EBoolLit  boolLitX  boolLitVal
 renameExpr EVar{..}      = EVar varX         <$> mapM getSym varVar
 renameExpr EUnOp{..}     = EUnOp unX unOp    <$> renameExpr unRHS
 renameExpr EBinOp{..}    = EBinOp binX binOp <$> renameExpr binLHS <*> renameExpr binRHS
--- renameExpr ECall{..}     = ECall callX       <$> mapM getSym callName <*> mapM renameExpr callArgs  -- TODO: how to do lookup?
+renameExpr ECall{..}     = ECall callX       <$> renameExpr callName <*> mapM renameExpr callArgs
 renameExpr EAssign{..}   = EAssign assignX   <$> mapM getSym assignVar <*> renameExpr assignExpr
-renameExpr EIf{..}       = EIf ifX           <$> renameExpr ifPred <*> renameExpr ifThen <*> mapM renameExpr ifElseMb
-renameExpr EBlock{..}    = withScope $ EBlock blockX <$> (mapM renameStmt blockBody) <*> (mapM renameExpr blockResult)
+renameExpr EIf{..}       = EIf ifX           <$> renameExpr ifPred <*> renameBlock ifThen <*> mapM renameBlock ifElseMb
+renameExpr EBlock{..}    = EBlock <$> renameBlock unBlock
 renameExpr EFunc{..} = do
   u <- mapM createSym funcName -- function symbol will be available inside function (recursion)
   (args, body) <- withScope $ do
       args <- mapM (mapM createSym) funcParams
-      body <- mapM renameStmt funcBody
+      body <- renameBlock funcBody
       return (args, body)
   pure $ EFunc funcX u args body
 
+renameBlock :: MonadSymbolize m sym => Block Name 'Parsed -> m (Block sym 'Parsed)
+renameBlock Block{..} = withScope $ Block blockX <$> mapM renameStmt blockBody <*> mapM renameExpr blockResult
 
 {- 
  - Renaming implementation using (Data.Map, [Int]) in StateT 

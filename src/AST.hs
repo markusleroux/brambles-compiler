@@ -44,7 +44,6 @@ type family XEUnOp     (p :: Pass)
 type family XEBinOp    (p :: Pass)
 type family XECall     (p :: Pass)
 type family XEAssign   (p :: Pass)
-type family XEBlock    (p :: Pass)
 type family XEIf       (p :: Pass)
 type family XEFunc     (p :: Pass)
 
@@ -53,6 +52,7 @@ type family XSDecl     (p :: Pass)
 type family XSWhile    (p :: Pass)
 type family XSReturn   (p :: Pass)
 
+type family XBlock     (p :: Pass)
 type family XProg      (p :: Pass)
 
 type Name = String
@@ -60,6 +60,12 @@ type Name = String
 newtype Var n = V n
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
+data Block n (p :: Pass) 
+  = Block
+    { blockX      :: XBlock p
+    , blockBody   :: [Stmt n p]
+    , blockResult :: Maybe (Expr n p)
+    }
 
 data Expr n (p :: Pass)
     = EIntLit 
@@ -99,22 +105,18 @@ data Expr n (p :: Pass)
       , assignVar   :: Var n
       , assignExpr  :: Expr n p
       }
-    | EBlock 
-      { blockX      :: XEBlock p
-      , blockBody   :: [Stmt n p]
-      , blockResult :: (Maybe (Expr n p))
-      }
+    | EBlock { unBlock :: Block n p }
     | EIf 
       { ifX         :: XEIf p
       , ifPred      :: Expr n p
-      , ifThen      :: Expr n p
-      , ifElseMb    :: Maybe (Expr n p)
+      , ifThen      :: Block n p
+      , ifElseMb    :: Maybe (Block n p)
       }
     | EFunc 
       { funcX       :: XEFunc p
       , funcName    :: Var n
       , funcParams  :: [Var n]
-      , funcBody    :: [Stmt n p]
+      , funcBody    :: Block n p
       }
 
 data Stmt n (p :: Pass)
@@ -149,7 +151,6 @@ type ForAllExprX (c :: Kind.Type -> Constraint) p =
   , c (XEBinOp p)
   , c (XECall p)
   , c (XEAssign p)
-  , c (XEBlock p)
   , c (XEIf p)
   , c (XEFunc p)
   )
@@ -164,14 +165,18 @@ type ForAllStmtX (c :: Kind.Type -> Constraint) p =
 type ForAllX (c :: Kind.Type -> Constraint) p = 
   ( ForAllExprX c p
   , ForAllStmtX c p
+  , c (XBlock p)
   , c (XProg p)
   )
 
+
 {- Automatically derive instances from underlying -}
+deriving instance (Show n, ForAllX Show p) => Show (Block n p)
 deriving instance (Show n, ForAllX Show p) => Show (Expr n p)
 deriving instance (Show n, ForAllX Show p) => Show (Stmt n p)
 deriving instance (Show n, ForAllX Show p) => Show (Prog n p)
 
+deriving instance (Eq n, ForAllX Eq p) => Eq (Block n p)
 deriving instance (Eq n, ForAllX Eq p) => Eq (Expr n p)
 deriving instance (Eq n, ForAllX Eq p) => Eq (Stmt n p)
 deriving instance (Eq n, ForAllX Eq p) => Eq (Prog n p)
@@ -179,17 +184,18 @@ deriving instance (Eq n, ForAllX Eq p) => Eq (Prog n p)
 
 {- Multiplate -}
 data Plate n (p :: Pass) f = Plate
-    { pProg  :: Prog n p -> f (Prog n p)
-    , pStmt  :: Stmt n p -> f (Stmt n p)
-    , pExpr  :: Expr n p -> f (Expr n p)
-    , pVar   :: Var n    -> f (Var n)
-    , pBinOp :: BinOp    -> f BinOp
-    , pUnOp  :: UnOp     -> f UnOp
+    { pProg  :: Prog n p  -> f (Prog n p)
+    , pStmt  :: Stmt n p  -> f (Stmt n p)
+    , pExpr  :: Expr n p  -> f (Expr n p)
+    , pBlock :: Block n p -> f (Block n p)
+    , pVar   :: Var n     -> f (Var n)
+    , pBinOp :: BinOp     -> f BinOp
+    , pUnOp  :: UnOp      -> f UnOp
     }
 
 instance Multiplate (Plate n p) where
     multiplate :: forall f. Applicative f => Plate n p f -> Plate n p f
-    multiplate Plate{..} = Plate buildProg buildStmt buildExpr buildVar buildBinOp buildUnOp
+    multiplate Plate{..} = Plate buildProg buildStmt buildExpr buildBlock buildVar buildBinOp buildUnOp
       where
         buildProg :: Prog n p -> f (Prog n p)
         buildProg (Globals x ss) = Globals x <$> (pStmt `traverse` ss)
@@ -206,10 +212,13 @@ instance Multiplate (Plate n p) where
         buildExpr EVar{..}    = EVar    varX    <$> pVar varVar
         buildExpr ECall{..}   = ECall   callX   <$> pExpr callName <*> (pExpr `traverse` callArgs)
         buildExpr EAssign{..} = EAssign assignX <$> pVar assignVar <*> pExpr assignExpr
-        buildExpr EBlock{..}  = EBlock  blockX  <$> (pStmt `traverse` blockBody) <*> (pExpr `traverse` blockResult)
-        buildExpr EIf{..}     = EIf     ifX     <$> pExpr ifPred <*> pExpr ifThen <*> (pExpr `traverse` ifElseMb)
-        buildExpr EFunc{..}   = EFunc   funcX   <$> pVar funcName <*> (pVar `traverse` funcParams) <*> (pStmt `traverse` funcBody)
+        buildExpr EBlock{..}  = EBlock  <$> buildBlock unBlock
+        buildExpr EIf{..}     = EIf     ifX     <$> pExpr ifPred <*> pBlock ifThen <*> (pBlock `traverse` ifElseMb)
+        buildExpr EFunc{..}   = EFunc   funcX   <$> pVar funcName <*> (pVar `traverse` funcParams) <*> pBlock funcBody
         buildExpr v = pure v
+
+        buildBlock :: Block n p -> f (Block n p)
+        buildBlock Block{..}  = Block  blockX  <$> (pStmt `traverse` blockBody) <*> (pExpr `traverse` blockResult)
 
         buildBinOp :: BinOp -> f BinOp
         buildBinOp = pure
@@ -220,4 +229,4 @@ instance Multiplate (Plate n p) where
         buildVar :: Var n -> f (Var n)
         buildVar = pure
 
-    mkPlate build = Plate (build pProg) (build pStmt) (build pExpr) (build pVar) (build pBinOp) (build pUnOp)
+    mkPlate build = Plate (build pProg) (build pStmt) (build pExpr) (build pBlock) (build pVar) (build pBinOp) (build pUnOp)

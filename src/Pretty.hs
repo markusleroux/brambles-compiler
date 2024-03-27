@@ -47,17 +47,23 @@ instance Pretty Type where
 instance Pretty n => Pretty (Var n) where
     pretty (V v) = pretty v
 
+instance Pretty n => Pretty (Block n 'Parsed) where
+  pretty Block{..} = prettyLikeBlock $ prettyStmts ++ prettyBlockResults
+    where
+      prettyStmts = pretty <$> blockBody
+      prettyBlockResults = maybeToList (pretty <$> blockResult)
+
 instance Pretty n => Pretty (Expr n 'Parsed) where
     pretty EIntLit{..}   = pretty intLitVal
     pretty EFloatLit{..} = pretty floatLitVal
     pretty EBoolLit{..}  = pretty (if boolLitVal then "true" else "false")
     pretty EVar{..}      = pretty varVar
-    pretty EBlock{..}    = prettyLikeBlock ((pretty <$> blockBody) ++ (maybeToList $ pretty <$> blockResult))
+    pretty EBlock{..}    = pretty unBlock
     pretty EUnOp{..}     = pretty unOp <> prettyGrouped unRHS
     pretty EBinOp{..}    = prettyGrouped binLHS <+> pretty binOp <+> prettyGrouped binRHS
     pretty ECall{..}     = pretty callName <> align (tupled $ pretty <$> callArgs)
     pretty EAssign{..}   = pretty assignVar <+> equals <+> pretty assignExpr
-    pretty EIf{..}       = pretty "if" <+> pretty ifPred <> pretty "then" <+> pretty ifThen <> maybe mempty prettyElse ifElseMb
+    pretty EIf{..}       = pretty "if" <+> pretty ifPred <+> pretty "then" <+> pretty ifThen <> maybe mempty prettyElse ifElseMb
       where
         prettyElse b = pretty " else" <+> pretty b
     pretty EFunc{..} =
@@ -66,7 +72,7 @@ instance Pretty n => Pretty (Expr n 'Parsed) where
                 <> align (tupled prettyParams)
             <+> pretty "->"
             <+> pretty (returnT $ snd funcX)
-            <+> prettyLikeBlock (pretty <$> funcBody)
+            <+> pretty funcBody
       where
         prettyParams = zipWith prettyParamAndType funcParams $ paramT (snd funcX)
         prettyParamAndType a t = pretty a <> colon <+> pretty t
@@ -85,7 +91,7 @@ instance Pretty n => Pretty (Stmt n 'Parsed) where
     pretty SReturn{..} = pretty "return" <+> pretty returnExpr <> semi
 
 prettyLikeBlock :: [Doc ann] -> Doc ann
-prettyLikeBlock lines = braces . newlineIf (null lines) . vsep $ lines
+prettyLikeBlock l = braces . newlineIf (null l) . vsep $ l
   where
     newlineIf = bool (enclose line line) id
 

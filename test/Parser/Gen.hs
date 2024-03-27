@@ -41,6 +41,9 @@ genVar = AST.V <$> genIdentifier
     validChar = Gen.choice [Gen.alpha, Gen.constant '_']
     isValidIdentifier = isRight . parse identifier ""
 
+genBlock :: Gen (AST.Block AST.Name 'AST.Parsed)
+genBlock = AST.Block SourceLoc <$> Gen.list blockLen genStmt <*> Gen.maybe genExpr
+
 genExpr :: Gen (AST.Expr AST.Name 'AST.Parsed)
 genExpr =
     Gen.recursive
@@ -54,9 +57,9 @@ genExpr =
         , AST.EBinOp    SourceLoc <$> genBinOp <*> genExpr <*> genExpr
         , AST.ECall     SourceLoc <$> (AST.EVar SourceLoc <$> genVar) <*> Gen.list paramRange genExpr  -- for now, only var name
         , AST.EAssign   SourceLoc <$> genVar <*> genExpr
-        , AST.EBlock    SourceLoc <$> Gen.list blockLen genStmt <*> Gen.maybe genExpr
+        , AST.EBlock              <$> genBlock
         , genFunction
-        -- TODO: if
+        , AST.EIf       SourceLoc <$> genExpr <*> genBlock <*> Gen.maybe genBlock
         ]
     where
       genFunction :: Gen (AST.Expr AST.Name 'AST.Parsed)
@@ -64,7 +67,7 @@ genExpr =
           (params, paramTs) <- unzip <$> Gen.list paramRange ((,) <$> genVar <*> genType)
           let genCallable = AST.TCallable paramTs <$> genType
           let genLocAndCallable = (,) SourceLoc <$> genCallable
-          AST.EFunc <$> genLocAndCallable <*> genVar <*> pure params <*> Gen.list blockLen genStmt
+          AST.EFunc <$> genLocAndCallable <*> genVar <*> pure params <*> genBlock
 
 genStmt :: Gen (AST.Stmt AST.Name 'AST.Parsed)
 genStmt =

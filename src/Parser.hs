@@ -16,6 +16,7 @@ import Lexer (
     fn,
     identifier,
     ifLex,
+    thenLex,
     integerType,
     lexer,
     natural,
@@ -50,7 +51,6 @@ type instance XEUnOp 'Parsed = SourceLoc
 type instance XEBinOp 'Parsed = SourceLoc
 type instance XECall 'Parsed = SourceLoc
 type instance XEAssign 'Parsed = SourceLoc
-type instance XEBlock 'Parsed = SourceLoc
 type instance XEIf 'Parsed = SourceLoc
 type instance XEFunc 'Parsed = (SourceLoc, Type)
 
@@ -59,6 +59,7 @@ type instance XSDecl 'Parsed = (SourceLoc, Type)
 type instance XSWhile 'Parsed = SourceLoc
 type instance XSReturn 'Parsed = SourceLoc
 
+type instance XBlock 'Parsed = SourceLoc
 type instance XProg 'Parsed = SourceLoc
 
 
@@ -73,6 +74,9 @@ typeP = integerP <|> floatP <|> boolP <|> callableP <?> "type"
 varP :: Parser (Var Name)
 varP = V <$> identifier
 
+blockP :: Parser (Block Name 'Parsed)
+blockP = braces $ Block  SourceLoc <$> many (try statementP) <*> optionMaybe exprP
+
 exprP :: Parser (Expr Name 'Parsed)
 exprP = 
   let
@@ -83,7 +87,7 @@ exprP =
       <|> try callP
       <|> try assignP
       <|> try evarP
-      <|> braces blockP
+      <|> eblockP
       <|> functionP
       <|> ifP
       <|> parens exprP
@@ -97,8 +101,8 @@ exprP =
     callP   = ECall   SourceLoc <$> (evarP <|> parens exprP) <*> parens (commas exprP)
     assignP = EAssign SourceLoc <$> (varP <* assignment) <*> exprP
     evarP   = EVar    SourceLoc <$> varP
-    blockP  = EBlock  SourceLoc <$> many (try statementP) <*> optionMaybe exprP
-    ifP     = EIf     SourceLoc <$> (ifLex *> parens exprP) <*> exprP <*> optionMaybe (elseLex *> exprP)
+    eblockP = EBlock            <$> blockP
+    ifP     = EIf     SourceLoc <$> (ifLex *> exprP) <*> (thenLex *> blockP) <*> optionMaybe (elseLex *> blockP)
 
     table =
         [ [unaryOp "-" Neg, unaryOp "+" Pos]
@@ -115,7 +119,7 @@ exprP =
         name <- fn *> varP
         (vars, params) <- unzip <$> parens (commas varAndTypeP)
         returns <- returnArrow *> typeP
-        EFunc (SourceLoc, TCallable params returns) name vars <$> bracedStmtsP
+        EFunc (SourceLoc, TCallable params returns) name vars <$> blockP
       where
         varAndTypeP = (,) <$> (varP <* colon) <*> typeP
 
