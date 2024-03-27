@@ -49,27 +49,27 @@ exprTests :: TestTree
 exprTests =
     testGroup
         "Basic expression parsing"
-        [ testCase "Integer literal" $ testSExprParser "3" @?= EIntLit 3
-        , testCase "Float literal" $ testSExprParser "3.0" @?= EFloatLit 3.0
+        [ testCase "Integer literal" $ testSExprParser "3" @?= EIntLit SourceLoc 3
+        , testCase "Float literal" $ testSExprParser "3.0" @?= EFloatLit SourceLoc 3.0
         , testCase "Call" $
             testSExprParser "function(3, 4)"
-                @?= ECall (V "function") [EIntLit 3, EIntLit 4]
+                @?= ECall SourceLoc (V "function") [EIntLit SourceLoc 3, EIntLit SourceLoc 4]
         , testCase "Call" $
             testSExprParser "aw(ch(-1.0, 0.0) - 2)"
-                @?= ECall (V "aw") [EBinOp Sub (ECall (V "ch") [EUnOp Neg $ EFloatLit 1.0, EFloatLit 0.0]) (EIntLit 2)]
-        , testCase "Variable" $ testSExprParser "abc" @?= EVar (V "abc")
+                @?= ECall SourceLoc (V "aw") [EBinOp SourceLoc Sub (ECall SourceLoc (V "ch") [EUnOp SourceLoc Neg $ EFloatLit SourceLoc 1.0, EFloatLit SourceLoc 0.0]) (EIntLit SourceLoc 2)]
+        , testCase "Variable" $ testSExprParser "abc" @?= EVar SourceLoc (V "abc")
         , -- Binary operators
-          testCase "Addition" $ testSExprParser "3 + 2" @?= EBinOp Add (EIntLit 3) (EIntLit 2)
+          testCase "Addition" $ testSExprParser "3 + 2" @?= EBinOp SourceLoc Add (EIntLit SourceLoc 3) (EIntLit SourceLoc 2)
         , testCase "Addition (braces)" $
             testSExprParser "3 + (2 - 5)"
-                @?= EBinOp Add (EIntLit 3) (EBinOp Sub (EIntLit 2) (EIntLit 5))
-        , testCase "Subtraction" $ testSExprParser "3 - 2" @?= EBinOp Sub (EIntLit 3) (EIntLit 2)
-        , testCase "Multiplication" $ testSExprParser "3 * 2" @?= EBinOp Mult (EIntLit 3) (EIntLit 2)
-        , testCase "Division" $ testSExprParser "3 / 2" @?= EBinOp Div (EIntLit 3) (EIntLit 2)
-        , testCase "Division (no spaces)" $ testSExprParser "3/2" @?= EBinOp Div (EIntLit 3) (EIntLit 2)
-        , testCase "EAssignment" $ testSExprParser "x = 2" @?= EAssign (V "x") (EIntLit 2)
+                @?= EBinOp SourceLoc Add (EIntLit SourceLoc 3) (EBinOp SourceLoc Sub (EIntLit SourceLoc 2) (EIntLit SourceLoc 5))
+        , testCase "Subtraction" $ testSExprParser "3 - 2" @?= EBinOp SourceLoc Sub (EIntLit SourceLoc 3) (EIntLit SourceLoc 2)
+        , testCase "Multiplication" $ testSExprParser "3 * 2" @?= EBinOp SourceLoc Mult (EIntLit SourceLoc 3) (EIntLit SourceLoc 2)
+        , testCase "Division" $ testSExprParser "3 / 2" @?= EBinOp SourceLoc Div (EIntLit SourceLoc 3) (EIntLit SourceLoc 2)
+        , testCase "Division (no spaces)" $ testSExprParser "3/2" @?= EBinOp SourceLoc Div (EIntLit SourceLoc 3) (EIntLit SourceLoc 2)
+        , testCase "EAssignment" $ testSExprParser "x = 2" @?= EAssign SourceLoc (V "x") (EIntLit SourceLoc 2)
         , testCase "Precedence" $
-            testSExprParser "x = y + 5.0" @?= EAssign (V "x") (EBinOp Add (EVar (V "y")) (EFloatLit 5.0))
+            testSExprParser "x = y + 5.0" @?= EAssign SourceLoc (V "x") (EBinOp SourceLoc Add (EVar SourceLoc (V "y")) (EFloatLit SourceLoc 5.0))
         ]
   where
     testSExprParser = testParser exprP
@@ -78,8 +78,8 @@ blockTests :: TestTree
 blockTests =
     testGroup
         "Basic block parsing"
-        [ testCase "Basic block" $ testBlockParser "{ }" @?= Block []
-        , testCase "EAssignment in block" $ testBlockParser "{ x = 3; }" @?= Block [SExpr $ EAssign (V "x") (EIntLit 3)]
+        [ testCase "Basic block" $ testBlockParser "{ }" @?= Block SourceLoc []
+        , testCase "EAssignment in block" $ testBlockParser "{ x = 3; }" @?= Block SourceLoc [SExpr SourceLoc $ EAssign SourceLoc (V "x") (EIntLit SourceLoc 3)]
         ]
   where
     testBlockParser = testParser blockP
@@ -91,46 +91,46 @@ fnTests =
         [ testCase "Empty" $
             testFnParser "fn function() -> int {};"
                 @?= SFunc
-                    { fName = V "function"
-                    , fType = TCallable [] TInt
+                    { fExt = (SourceLoc, TCallable [] TInt)
+                    , fName = V "function"
                     , fParams = []
-                    , fBody = Block []
+                    , fBody = Block SourceLoc []
                     }
         , testCase "One argument" $
             testFnParser "fn function(a: int) -> int {};"
                 @?= SFunc
-                    { fName = V "function"
-                    , fType = TCallable [TInt] TInt
+                    { fExt = (SourceLoc, TCallable [TInt] TInt)
+                    , fName = V "function"
                     , fParams = [V "a"]
-                    , fBody = Block []
+                    , fBody = Block SourceLoc []
                     }
         , testCase "Multiple argument" $
             testFnParser "fn function(a: int, b: float) -> float {};"
                 @?= SFunc
-                    { fName = V "function"
-                    , fType = TCallable [TInt, TFloat] TFloat
+                    { fExt = (SourceLoc, TCallable [TInt, TFloat] TFloat)
+                    , fName = V "function"
                     , fParams = [V "a", V "b"]
-                    , fBody = Block []
+                    , fBody = Block SourceLoc []
                     }
         , testCase "Small body" $
             testFnParser "fn function(a: int, b: float) -> float { x = 3; };"
                 @?= SFunc
-                    { fName = V "function"
-                    , fType = TCallable [TInt, TFloat] TFloat
+                    { fExt = (SourceLoc, TCallable [TInt, TFloat] TFloat)
+                    , fName = V "function"
                     , fParams = [V "a", V "b"]
-                    , fBody = Block [SExpr (EAssign (V "x") (EIntLit 3))]
+                    , fBody = Block SourceLoc [SExpr SourceLoc (EAssign SourceLoc (V "x") (EIntLit SourceLoc 3))]
                     }
         , testCase "Medium body" $
             testFnParser "fn function(a: int, b: float) -> float { x; let y: float = 3 * 10.0; a = 4; };"
                 @?= SFunc
-                    { fName = V "function"
-                    , fType = TCallable [TInt, TFloat] TFloat
+                    { fExt = (SourceLoc, TCallable [TInt, TFloat] TFloat)
+                    , fName = V "function"
                     , fParams = [V "a", V "b"]
                     , fBody =
-                        Block
-                            [ SExpr (EVar (V "x"))
-                            , SDecl (V "y") TFloat (EBinOp Mult (EIntLit 3) (EFloatLit 10.0))
-                            , SExpr $ EAssign (V "a") (EIntLit 4)
+                        Block SourceLoc 
+                            [ SExpr SourceLoc (EVar SourceLoc (V "x"))
+                            , SDecl (SourceLoc, TFloat) (V "y") (EBinOp SourceLoc Mult (EIntLit SourceLoc 3) (EFloatLit SourceLoc 10.0))
+                            , SExpr SourceLoc $ EAssign SourceLoc (V "a") (EIntLit SourceLoc 4)
                             ]
                     }
         ]
@@ -141,16 +141,16 @@ programTests :: TestTree
 programTests =
     testGroup
         "Basic program tests"
-        [ testCase "Empty" $ testProgramParser "" @?= Globals []
+        [ testCase "Empty" $ testProgramParser "" @?= Globals SourceLoc []
         , testCase "EAssignment and function" $
             testProgramParser "let x: int = 3; fn test(y: float) -> int { z = 5; };"
-                @?= Globals
-                    [ SDecl (V "x") TInt (EIntLit 3)
+                @?= Globals SourceLoc
+                    [ SDecl (SourceLoc, TInt) (V "x") (EIntLit SourceLoc 3)
                     , SFunc
-                        { fName = V "test"
+                        { fExt = (SourceLoc, TCallable [TFloat] TInt)
+                        , fName = V "test"
                         , fParams = [V "y"]
-                        , fType = TCallable [TFloat] TInt
-                        , fBody = Block [SExpr $ EAssign (V "z") (EIntLit 5)]
+                        , fBody = Block SourceLoc [SExpr SourceLoc $ EAssign SourceLoc (V "z") (EIntLit SourceLoc 5)]
                         }
                     ]
         ]
