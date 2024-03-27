@@ -69,51 +69,51 @@ data Block n (p :: Pass)
 
 data Expr n (p :: Pass)
     = EIntLit 
-      { intLitX     :: XEIntLit p
+      { intLitX     :: !(XEIntLit p)
       , intLitVal   :: Integer
       }
     | EFloatLit 
-      { floatLitX   :: XEFloatLit p
+      { floatLitX   :: !(XEFloatLit p)
       , floatLitVal :: Double
       }
     | EBoolLit  
-      { boolLitX    :: XEBoolLit p
+      { boolLitX    :: !(XEBoolLit p)
       , boolLitVal  :: Bool
       }
     | EVar      
-      { varX        :: XEVar p
+      { varX        :: !(XEVar p)
       , varVar      :: Var n
       }
     | EUnOp 
-      { unX         :: XEUnOp p
+      { unX         :: !(XEUnOp p)
       , unOp        :: UnOp
       , unRHS       :: Expr n p
       }
     | EBinOp 
-      { binX        :: XEBinOp p
+      { binX        :: !(XEBinOp p)
       , binOp       :: BinOp
       , binLHS      :: Expr n p
       , binRHS      :: Expr n p
       }
     | ECall 
-      { callX       :: XECall p
+      { callX       :: !(XECall p)
       , callName    :: Expr n p
       , callArgs    :: [Expr n p]
       }
     | EAssign 
-      { assignX     :: XEAssign p
+      { assignX     :: !(XEAssign p)
       , assignVar   :: Var n
       , assignExpr  :: Expr n p
       }
     | EBlock { unBlock :: Block n p }
     | EIf 
-      { ifX         :: XEIf p
+      { ifX         :: !(XEIf p)
       , ifPred      :: Expr n p
       , ifThen      :: Block n p
       , ifElseMb    :: Maybe (Block n p)
       }
     | EFunc 
-      { funcX       :: XEFunc p
+      { funcX       :: !(XEFunc p)
       , funcName    :: Var n
       , funcParams  :: [Var n]
       , funcBody    :: Block n p
@@ -121,25 +121,25 @@ data Expr n (p :: Pass)
 
 data Stmt n (p :: Pass)
     = SExpr 
-      { exprX      :: XSExpr p
+      { exprX      :: !(XSExpr p)
       , exprExpr   :: Expr n p
       }
     | SDecl 
-      { declX      :: XSDecl p
+      { declX      :: !(XSDecl p)
       , declName   :: Var n
       , declExpr   :: Expr n p
       }
     | SWhile 
-      { whileX     :: XSWhile p
+      { whileX     :: !(XSWhile p)
       , whilePred  :: Expr n p
       , whileBody  :: [Stmt n p]
       }
     | SReturn 
-      { returnX    :: XSReturn p
+      { returnX    :: !(XSReturn p)
       , returnExpr :: Expr n p
       }
 
-data Prog n (p :: Pass) = Globals (XProg p) [Stmt n p]
+data Prog n (p :: Pass) = Globals !(XProg p) [Stmt n p]
 
 {- Useful constraint types using constraint kinds -}
 type ForAllExprX (c :: Kind.Type -> Constraint) p = 
