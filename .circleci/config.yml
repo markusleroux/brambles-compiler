@@ -1,0 +1,34 @@
+version: 2.1
+jobs:
+  test:
+    docker:
+      - image: haskell:9.2.8
+    steps:
+      - checkout
+      - run: git submodule sync
+      - run: git submodule update --init
+      - restore_cache:
+          name: Restore Cached Artifacts
+          key: haskell-artifacts-{{ checksum "compiler.cabal" }}
+      - run:
+          name: Update dependencies
+          command: cabal new-update && cabal new-install --lib
+      - run:
+          name: Compile
+          command: cabal new-build
+      - run:
+          name: Build tests
+          command: cabal new-build --enable-tests
+      - save_cache:
+          name: Cache Artifacts
+          key: haskell-artifacts-{{ checksum "compiler.cabal" }}
+          paths:
+            - "/root/.cabal"
+            - "dist-newstyle"
+      - run:
+          name: Run Tests
+          command: cabal new-test --enable-tests --test-show-details=streaming
+workflows:
+  test-flow:
+    jobs:
+      - test
