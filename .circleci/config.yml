@@ -9,7 +9,7 @@ jobs:
       - run: git submodule update --init
       - restore_cache:
           name: Restore Cached Artifacts
-          key: haskell-artifacts-{{ checksum "circleci-cabal.cabal" }}
+          key: haskell-artifacts-{{ checksum "compiler.cabal" }}
       - run:
           name: Update dependencies
           command: cabal new-update && cabal new-install --lib
@@ -21,7 +21,7 @@ jobs:
           command: cabal new-build --enable-tests
       - save_cache:
           name: Cache Artifacts
-          key: haskell-artifacts-{{ checksum "circleci-cabal.cabal" }}
+          key: haskell-artifacts-{{ checksum "compiler.cabal" }}
           paths:
             - "/root/.cabal"
             - "dist-newstyle"
