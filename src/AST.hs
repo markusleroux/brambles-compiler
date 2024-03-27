@@ -73,8 +73,9 @@ data Expr n (p :: Pass)
     | ECall {callExt :: XECall p, callFunc :: Var n, callArgs :: [Expr n p]}
     | EAssign {assignExt :: XEAssign p, assignVar :: Var n, assignVal :: Expr n p}
     -- TODO: returns in block have different meaning depending on function body/scoping block, distinguish body and block?
+    --  type of block does not correspond to type of returns in block, consider early return in block being assigned
     | EBlock (XEBlock p) (Block n p) 
-    | EIf {ifExt :: XEIf p, ifCond :: Expr n p, ifBody :: Block n p, ifElseMb :: Maybe (Block n p)}  -- TODO: make these expr?
+    | EIf {ifExt :: XEIf p, ifCond :: Expr n p, ifBody :: Block n p, ifElseMb :: Maybe (Block n p)}  -- TODO: make these expr
 
 data Stmt n (p :: Pass)
     = SExpr (XSExpr p) (Expr n p)

@@ -5,17 +5,21 @@ import AST
 import Parser (SourceLoc)
 
 import Control.Monad (unless)
+import Control.Monad.Identity (Identity, runIdentity)
 import Control.Monad.Except (
     MonadError,
+    ExceptT,
+    runExceptT,
     throwError
  )
 
+import Control.Exception (Exception)
+
 data TypeError
     = TypeError
-    deriving (Eq)
+    deriving (Eq, Show)
 
-instance Show TypeError where
-    show TypeError = undefined
+instance Exception TypeError
 
 
 type instance XEIntLit 'Typed = (SourceLoc, Type)
@@ -133,6 +137,16 @@ inferBlock (Block l ss) = do
 inferProg :: MonadError TypeError m => Prog n 'Parsed -> m (Prog n 'Typed)
 inferProg (Globals l ss) = Globals l <$> mapM inferStmt ss
 
+newtype TypecheckingM m a = TypecheckingM { runTypecheckingM :: ExceptT TypeError m a }
+  deriving newtype (Functor, Applicative, Monad, MonadError TypeError)
+
+runTypecheckingT :: Monad m => TypecheckingM m a -> m (Either TypeError a)
+runTypecheckingT = runExceptT . runTypecheckingM
+
+type Typechecking a = TypecheckingM Identity a
+
+runTypechecking :: Typechecking a -> Either TypeError a
+runTypechecking = runIdentity . runTypecheckingT
 
 -- Approach Two: Generate constraint problem and elaboration, solve constraints and fill in elaboration a la Haskell (https://www.youtube.com/watch?v=-TJGhGa04F8)
 
