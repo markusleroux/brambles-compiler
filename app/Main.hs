@@ -2,18 +2,20 @@ module Main where
 
 import qualified AST
 import Parser (exprP, programP)
+import Typecheck (runTypechecking, inferExpr, TypeError)
+import qualified LLVM
 
+import Control.Monad.Except
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.Text.Lazy.IO as TIO
-import LLVM.Pretty (ppllvm)
 import System.Console.Haskeline (InputT, defaultSettings, getInputLine, runInputT)
-import Text.Parsec (parse)
+import Text.Parsec (parse, ParseError)
 
-import LLVM
-import Options.Applicative
+import Options.Applicative hiding (ParseError)
 
 data REPLOptions = REPLOptions
-    { ir :: !Bool
+    { typedAST :: !Bool
+    , ir :: !Bool
     , compile :: Maybe FilePath
     }
 
@@ -27,24 +29,29 @@ getREPLOptions =
 
 repl :: REPLOptions -> IO () -- Execute
 repl options =
-    let printers = fromOptions options
-        run = runPrinters printers
-
-        parseAndRun line = case parse exprP "<stdin>" line of
-            Left err -> print err
-            Right prog -> run prog
-
-        promptAndRun =
-            getInputLine "womp> " >>= \case
-                Nothing -> return ()
-                Just input -> liftIO (parseAndRun input) >> promptAndRun
-     in runInputT defaultSettings promptAndRun
+    let 
+      promptAndRun = getInputLine "womp> " >>= \case
+          Nothing -> return () -- exit
+          Just input -> liftIO (runAndPrintErrors printers input) >> promptAndRun
+     in 
+      runInputT defaultSettings promptAndRun
+     where 
+      printers = fromOptions options
 
 commandLine :: Parser REPLOptions
 commandLine =
     REPLOptions
-        <$> printIRParser
+        <$> printTypedASTParser
+        <*> printIRParser
         <*> optional doCompileParser
+
+printTypedASTParser :: Parser Bool
+printTypedASTParser =
+    switch $
+        long "typed"
+            <> short 't'
+            <> help "Print the typed AST to stdout"
+
 
 printIRParser :: Parser Bool
 printIRParser =
@@ -61,22 +68,46 @@ doCompileParser =
             <> help "Compile output to file"
 
 data Printers = Printers
-    { astPrinter :: Maybe (AST.Expr AST.Name -> IO ())
-    , irPrinter :: Maybe (AST.Expr AST.Name -> IO ())
-    , compilePrinter :: Maybe (AST.Expr AST.Name -> IO ())
+    { astPrinter :: Maybe (AST.Expr AST.Name 'AST.Parsed -> IO ())
+    , typedAstPrinter :: Maybe (AST.Expr AST.Name 'AST.Typed -> IO ())
+    , irPrinter :: Maybe (LLVM.Module -> IO ())
+    , compilePrinter :: Maybe (LLVM.Module -> IO ())
     }
 
 fromOptions :: REPLOptions -> Printers
 fromOptions REPLOptions{..} =
     Printers
         { astPrinter = Just print
-        , irPrinter = if ir then Just (TIO.putStrLn . ppllvm . toLLVM) else Nothing
-        , compilePrinter = flip (LLVM.compile . toLLVM) <$> compile
+        , typedAstPrinter = if typedAST then Just print else Nothing
+        , irPrinter = if ir then Just (TIO.putStrLn . LLVM.ppllvm) else Nothing
+        , compilePrinter = flip LLVM.compile <$> compile
         }
 
-runPrinters :: Printers -> AST.Expr AST.Name -> IO ()
-runPrinters Printers{..} e = do
-    sequence $ astPrinter <*> pure e
-    sequence $ irPrinter <*> pure e
-    sequence $ compilePrinter <*> pure e
-    pure ()
+
+data REPLError
+  = ParseError ParseError
+  | TypecheckError TypeError
+  deriving (Show)
+
+runAndPrintErrors :: Printers -> String -> IO ()
+runAndPrintErrors p input = 
+  let
+    run :: Printers -> String -> ExceptT REPLError IO ()
+    run Printers{..} line = do
+      parsedAST <- withExceptT ParseError $ liftEither $ parse exprP "<stdin>" line
+
+      runPrinter astPrinter parsedAST
+
+      typecheckedAST <- withExceptT TypecheckError $ liftEither $ runTypechecking . inferExpr $ parsedAST
+      runPrinter typedAstPrinter typecheckedAST
+
+      let compiledModule = LLVM.toLLVM typecheckedAST
+      runPrinter irPrinter compiledModule
+      runPrinter compilePrinter compiledModule
+  in
+    runExceptT (run p input) >>= \case
+      Left err -> print err
+      Right _ -> pure ()
+  where
+    runPrinter pMb v = liftIO . sequence_ $ pMb <*> pure v
+
