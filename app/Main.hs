@@ -2,7 +2,7 @@ module Main where
 
 import qualified AST
 import Parser (exprP, programP)
-import Typecheck (runTypechecking, inferExpr, TypeError)
+import Typecheck (runTypechecking, inferExpr, TypeError, Typechecking)
 import qualified LLVM
 
 import Control.Monad.Except
@@ -31,7 +31,7 @@ repl :: REPLOptions -> IO () -- Execute
 repl options =
     let 
       promptAndRun = getInputLine "womp> " >>= \case
-          Nothing -> return () -- exit
+          Nothing -> liftIO $ putStrLn "quit"
           Just input -> liftIO (runAndPrintErrors printers input) >> promptAndRun
      in 
       runInputT defaultSettings promptAndRun
@@ -94,20 +94,21 @@ runAndPrintErrors p input =
   let
     run :: Printers -> String -> ExceptT REPLError IO ()
     run Printers{..} line = do
-      parsedAST <- withExceptT ParseError $ liftEither $ parse exprP "<stdin>" line
+      parsedAST <- withExceptT ParseError $
+          liftEither $ parse exprP "<stdin>" line
 
       runPrinter astPrinter parsedAST
 
-      typecheckedAST <- withExceptT TypecheckError $ liftEither $ runTypechecking . inferExpr $ parsedAST
+      let t :: Typechecking AST.Name (AST.Expr AST.Name 'AST.Typed) = inferExpr parsedAST
+      typecheckedAST <- withExceptT TypecheckError $
+          liftEither $ runTypechecking t
       runPrinter typedAstPrinter typecheckedAST
 
       let compiledModule = LLVM.toLLVM typecheckedAST
       runPrinter irPrinter compiledModule
       runPrinter compilePrinter compiledModule
   in
-    runExceptT (run p input) >>= \case
-      Left err -> print err
-      Right _ -> pure ()
+    runExceptT (run p input) >>= either print pure
   where
     runPrinter pMb v = liftIO . sequence_ $ pMb <*> pure v
 

@@ -51,7 +51,7 @@ class (ThrowsSymbolizeException m, MonadScoping m) => MonadSymbolize m sym where
     createSym :: Name -> m sym
 
     getSym :: Name -> m sym
-    getSym name = getSymMb name >>= maybe (throwUndefined name) return
+    getSym name = getSymMb name >>= maybe (throwUndefined name) pure
 
 
 {- Renaming Functions -}
@@ -74,7 +74,7 @@ renameExpr EBinOp{..}    = EBinOp binX binOp <$> renameExpr binLHS <*> renameExp
 renameExpr ECall{..}     = ECall callX       <$> renameExpr callName <*> mapM renameExpr callArgs
 renameExpr EAssign{..}   = EAssign assignX   <$> mapM getSym assignVar <*> renameExpr assignExpr
 renameExpr EIf{..}       = EIf ifX           <$> renameExpr ifPred <*> renameBlock ifThen <*> mapM renameBlock ifElseMb
-renameExpr EBlock{..}    = EBlock <$> renameBlock unBlock
+renameExpr EBlock{..}    = EBlock            <$> renameBlock unBlock
 renameExpr EFunc{..} = do
   u <- mapM createSym funcName -- function symbol will be available inside function (recursion)
   (args, body) <- withScope $ do
@@ -116,3 +116,4 @@ type IncrementalSymbolize = IncrementalSymbolizeM Identity
 
 runIncrementalSymbolize :: IncrementalSymbolize a -> Either SymbolizeException a
 runIncrementalSymbolize = runIdentity . runIncrementalSymbolizeT
+
