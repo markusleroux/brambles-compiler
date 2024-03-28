@@ -24,6 +24,8 @@ common compiler-common
         , ScopedTypeVariables
         , DeriveAnyClass
         , DerivingStrategies
+        , DefaultSignatures
+        , FunctionalDependencies
 
 library compiler-lib
     import: compiler-common

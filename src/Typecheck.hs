@@ -72,7 +72,7 @@ class MonadError TypeError m => ThrowsTypeException m where
   throwTypeError :: m a
   throwTypeError = throwError TypeError
 
-class (ThrowsTypeException m, Monad m) => MonadTy m n where
+class (ThrowsTypeException m, Monad m) => MonadTy m n | m -> n where
   setType :: n -> Type -> m ()
   lookupTypeMb :: n -> m (Maybe Type)
 

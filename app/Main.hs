@@ -101,9 +101,8 @@ runAndPrintErrors p input =
 
       runPrinter astPrinter parsedAST
 
-      let t :: Typechecking AST.Name (AST.Expr AST.Name 'AST.Typed) = inferExpr parsedAST
       typecheckedAST <- withExceptT TypecheckError $
-          liftEither $ runTypechecking t
+          liftEither $ runTypechecking $ inferExpr parsedAST
       runPrinter typedAstPrinter typecheckedAST
 
       compiledModule <- withExceptT CodegenError $

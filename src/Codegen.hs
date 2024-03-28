@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Codegen 
   ( exprToLLVM
   , toLLVM
   , compile 
-  , ppllvm
   , LLVM.AST.Module
   , LLVM.Pretty.ppllvm
   , CodegenError
@@ -29,12 +29,9 @@ import qualified LLVM.IRBuilder.Module as LLVM
 import qualified LLVM.IRBuilder.Monad as LLVM
 import LLVM.Pretty (ppllvm)
 
-import Control.Monad (join, void, unless, zipWithM_)
 import Control.Monad.Identity (Identity, runIdentity)
 import Control.Monad.State
 import Control.Monad.Except (MonadError, ExceptT, runExceptT, throwError)
-import Control.Monad.Trans (lift)
-import Control.Monad.Fix
 import Control.Exception (bracket)
 
 import Data.Map.Strict (Map)
@@ -52,6 +49,31 @@ import System.Directory (removePathForcibly, withCurrentDirectory)
 import System.IO (hClose)
 import System.Posix.Temp (mkdtemp, mkstemps)
 import System.Process (callProcess)
+
+
+data CodegenError = CodegenError
+  deriving (Show)
+
+class MonadError CodegenError m => ThrowsCodegenError m where
+  throwCodegenError :: m a
+  throwCodegenError = throwError CodegenError
+
+instance ThrowsCodegenError m => ThrowsCodegenError (LLVM.IRBuilderT m)
+
+
+instance MonadScoping m => MonadScoping (LLVM.IRBuilderT m) where
+  withScope = withScope
+
+class (ThrowsCodegenError m, MonadScoping m, Ord n) => MonadSymbolTable m n | m -> n where
+  getSymbolMb :: n -> m (Maybe LLVM.AST.Operand)
+  addSymbol :: n -> LLVM.AST.Operand -> m ()
+
+  getSymbol :: n -> m LLVM.AST.Operand
+  getSymbol = getSymbolMb >=> maybe throwCodegenError pure
+
+instance MonadSymbolTable m n => MonadSymbolTable (LLVM.IRBuilderT m) n where
+  getSymbolMb = lift . getSymbolMb
+  addSymbol = addSymbol
 
 
 typeToLLVM 
@@ -118,31 +140,26 @@ namedBlock = LLVM.named LLVM.block
 entryBlockName :: ShortByteString
 entryBlockName = "entry"
 
-data CodegenError = CodegenError
-  deriving (Show)
+allocate ::
+  ( MonadSymbolTable m n
+  , LLVM.MonadIRBuilder m
+  ) => AST.Var n -> LLVM.AST.Operand -> m LLVM.AST.Operand
+allocate (AST.V argName) arg = do
+  var <- LLVM.alloca (LLVM.Type.typeOf arg) {-count-}Nothing {-align-}0
+  LLVM.store var {-align-}0 arg
+  addSymbol argName var
+  pure var
 
-class MonadError CodegenError m => ThrowsCodegenError m where
-  throwCodegenError :: m a
-  throwCodegenError = throwError CodegenError
-
-class (ThrowsCodegenError m, MonadScoping m, Ord n) => MonadSymbolTable m n where
-  getSymbolMb :: n -> m (Maybe LLVM.AST.Operand)
-  addSymbol :: n -> LLVM.AST.Operand -> m ()
-
-  getSymbol :: n -> m LLVM.AST.Operand
-  getSymbol = getSymbolMb >=> maybe throwCodegenError pure
 
 
 blockToLLVM 
   :: (LLVM.MonadIRBuilder m, MonadFix m)
-  => AST.Block n 'AST.Typed 
-  -> m LLVM.AST.Operand
+  => AST.Block n 'AST.Typed -> m LLVM.AST.Operand
 blockToLLVM = undefined
 
 exprToLLVM 
   :: forall n m. (MonadSymbolTable m n, LLVM.MonadIRBuilder m, LLVM.MonadModuleBuilder m, MonadFix m) 
-  => AST.Expr n 'AST.Typed 
-  -> m LLVM.AST.Operand
+  => AST.Expr n 'AST.Typed -> m LLVM.AST.Operand
 exprToLLVM (AST.EIntLit _ v)   = pure $ LLVMC.int64 v
 exprToLLVM (AST.EFloatLit _ v) = pure $ LLVMC.double v
 exprToLLVM (AST.EBoolLit _ v)  = pure $ LLVMC.bit (if v then 1 else 0)
@@ -189,16 +206,6 @@ exprToLLVM f@AST.EFunc{..} = do
         AST.TCallable{..} -> (map (\t -> (typeToLLVM t, LLVM.NoParameterName)) paramT, typeToLLVM returnT)
         _ -> undefined
 
-allocate ::
-  ( MonadSymbolTable m n
-  , LLVM.MonadIRBuilder m
-  ) => AST.Var n -> LLVM.AST.Operand -> m LLVM.AST.Operand
-allocate (AST.V argName) arg = do
-  var <- LLVM.alloca (LLVM.Type.typeOf arg) {-count-}Nothing {-align-}0
-  LLVM.store var {-align-}0 arg
-  addSymbol argName var
-  pure var
-
 stmtToLLVM :: 
   ( MonadSymbolTable m n
   , LLVM.MonadIRBuilder m
@@ -220,6 +227,8 @@ progToLLVM ::
   ) => AST.Prog n 'AST.Typed -> m ()
 progToLLVM (AST.Globals _ stmts) = mapM_ stmtToLLVM stmts
 
+
+
 newtype CodegenM m n a = CodegenT 
   { runCodegenM :: 
       StateT (Map n LLVM.AST.Operand)
@@ -235,15 +244,7 @@ newtype CodegenM m n a = CodegenT
     , MonadFix
     , LLVM.MonadModuleBuilder
     )
-  deriving anyclass (ThrowsCodegenError)
-
-
-instance Monad m => MonadScoping (CodegenM m n) where
-  withScope computation = do
-    outerScope <- get -- save the outer scope
-    result <- computation -- run the computation
-    put outerScope -- restore the outer scope
-    pure result
+  deriving anyclass (ThrowsCodegenError, MonadScoping)
 
 instance (Monad m, Ord n) => MonadSymbolTable (CodegenM m n) n where
   getSymbolMb = gets . Map.lookup
@@ -259,22 +260,12 @@ type Codegen n = CodegenM Identity n
 runCodegen :: Codegen n a -> Either CodegenError LLVM.AST.Module
 runCodegen = runIdentity . runCodegenT
 
-instance ThrowsCodegenError m => ThrowsCodegenError (LLVM.IRBuilderT m)
-
-instance MonadScoping m => MonadScoping (LLVM.IRBuilderT m) where
-  withScope = withScope
-
-instance MonadSymbolTable m n => MonadSymbolTable (LLVM.IRBuilderT m) n where
-  getSymbolMb = lift . getSymbolMb
-  addSymbol = addSymbol
-
-
 toLLVM :: forall n. Ord n => AST.Expr n 'AST.Typed -> Either CodegenError LLVM.AST.Module
 toLLVM expr = runCodegen $ do
     printInt <- LLVM.extern "printint" [LLVM.Type.i32] LLVM.Type.i32
 
     LLVM.function "main" [] LLVM.Type.i32 $ \_ -> do
-        e <- (exprToLLVM expr :: LLVM.IRBuilderT (Codegen n) LLVM.AST.Operand)
+        e <- exprToLLVM expr
         _ <- LLVM.call printInt [(e, [])]
 
         LLVM.ret $ LLVMC.int32 0
