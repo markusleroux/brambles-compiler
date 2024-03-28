@@ -3,7 +3,8 @@ module Main where
 import qualified AST
 import Parser (exprP, programP)
 import Typecheck (runTypechecking, inferExpr, TypeError, Typechecking)
-import qualified LLVM
+import qualified Codegen
+import qualified Codegen as LLVM (ppllvm, Module, toLLVM)
 
 import Control.Monad.Except
 import Control.Monad.IO.Class (liftIO)
@@ -80,13 +81,14 @@ fromOptions REPLOptions{..} =
         { astPrinter = Just print
         , typedAstPrinter = if typedAST then Just print else Nothing
         , irPrinter = if ir then Just (TIO.putStrLn . LLVM.ppllvm) else Nothing
-        , compilePrinter = flip LLVM.compile <$> compile
+        , compilePrinter = flip Codegen.compile <$> compile
         }
 
 
 data REPLError
   = ParseError ParseError
   | TypecheckError TypeError
+  | CodegenError Codegen.CodegenError
   deriving (Show)
 
 runAndPrintErrors :: Printers -> String -> IO ()
@@ -104,7 +106,8 @@ runAndPrintErrors p input =
           liftEither $ runTypechecking t
       runPrinter typedAstPrinter typecheckedAST
 
-      let compiledModule = LLVM.toLLVM typecheckedAST
+      compiledModule <- withExceptT CodegenError $
+        liftEither $ LLVM.toLLVM typecheckedAST
       runPrinter irPrinter compiledModule
       runPrinter compilePrinter compiledModule
   in
