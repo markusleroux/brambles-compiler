@@ -181,7 +181,10 @@ exprToLLVM c@AST.ECall{..}   = do
     AST.EVar _ (AST.V v) -> getSymbol v
     _ -> error "Codegen error"
   LLVM.call (typeToLLVM $ getType c) f [(arg, []) | arg <- args']
-exprToLLVM AST.EAssign{..} = allocate assignVar =<< exprToLLVM assignExpr
+exprToLLVM AST.EAssign{..} = do
+  var <- getSymbol $ AST.unVar assignVar
+  LLVM.store var 0 =<< exprToLLVM assignExpr
+  pure var
 exprToLLVM AST.EBlock{..}  = blockToLLVM unBlock
 exprToLLVM AST.EIf{..} = mdo
     ifPred' <- exprToLLVM ifPred
