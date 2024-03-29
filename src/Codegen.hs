@@ -223,8 +223,20 @@ stmtToLLVM ::
   , MonadFix m
   ) => AST.Stmt n 'AST.Typed -> m ()
 stmtToLLVM (AST.SExpr _ e)    = void $ exprToLLVM e
-stmtToLLVM (AST.SDecl _ _ _)  = undefined
-stmtToLLVM (AST.SWhile _ _ _) = undefined
+stmtToLLVM AST.SDecl{..}  = void $ exprToLLVM declExpr >>= allocate declName
+stmtToLLVM AST.SWhile{..} = mdo
+  LLVM.br whileStart
+  whileStart <- namedBlock "while.start"
+
+  whilePred' <- exprToLLVM whilePred
+  LLVM.condBr whilePred' whileBodyBlock whileEnd
+  
+  whileBodyBlock <- namedBlock "while.body"
+  mapM_ stmtToLLVM whileBody
+  
+  LLVM.br whileStart
+  whileEnd <- namedBlock "while.end"
+  pure ()
 stmtToLLVM (AST.SReturn (_, t) e) = case t of
   AST.TUnit -> LLVM.retVoid  -- TODO: unit vs void?
   _ -> LLVM.ret =<< exprToLLVM e
