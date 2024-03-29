@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -37,7 +38,7 @@ import LLVM.Context
 import LLVM.ExecutionEngine as EE
 
 import Control.Monad.Identity (Identity, runIdentity)
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Control.Monad.Except (MonadError, ExceptT, runExceptT, throwError)
 
 import Data.Map.Strict (Map)
@@ -58,7 +59,7 @@ instance ThrowsCodegenError m => ThrowsCodegenError (LLVM.IRBuilderT m)
 
 
 instance MonadScoping m => MonadScoping (LLVM.IRBuilderT m) where
-  withScope = withScope
+    withScope (LLVM.IRBuilderT irState) = LLVM.IRBuilderT . StateT $ withScope . runStateT irState
 
 class (ThrowsCodegenError m, MonadScoping m, Ord n) => MonadSymbolTable m n | m -> n where
   getSymbolMb :: n -> m (Maybe LLVM.AST.Operand)

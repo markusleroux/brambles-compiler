@@ -48,9 +48,9 @@ class Monad m => MonadScoping m where
 
     default withScope :: MonadState s m => m a -> m a
     withScope computation = do
-        outerScope <- get -- save the outer scope
+        outerScope <- get     -- save the outer scope
         result <- computation -- run the computation
-        put outerScope -- restore the outer scope
+        put outerScope        -- restore the outer scope
         pure result
 
 class (ThrowsSymbolizeException m, MonadScoping m) => MonadSymbolize m sym | m -> sym where
