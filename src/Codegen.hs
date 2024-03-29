@@ -155,9 +155,14 @@ allocate (AST.V argName) arg = do
 
 
 blockToLLVM 
-  :: (LLVM.MonadIRBuilder m, MonadFix m)
+  :: (LLVM.MonadIRBuilder m, LLVM.MonadModuleBuilder m, MonadFix m, MonadSymbolTable m n)
   => AST.Block n 'AST.Typed -> m LLVM.AST.Operand
-blockToLLVM = undefined
+blockToLLVM AST.Block{..} = do
+  mapM_ stmtToLLVM blockBody
+  mapM exprToLLVM blockResult >>= \case
+    Just r  -> pure r
+    Nothing -> pure $ LLVM.AST.ConstantOperand $ LLVM.AST.Undef LLVM.Type.void
+    
 
 exprToLLVM 
   :: forall n m. (MonadSymbolTable m n, LLVM.MonadIRBuilder m, LLVM.MonadModuleBuilder m, MonadFix m) 
@@ -196,10 +201,10 @@ exprToLLVM AST.EIf{..} = mdo
     LLVM.phi [(ifThenVal, ifThen'), (ifElseVal, ifElse')]
 exprToLLVM f@AST.EFunc{..} = do
   fName <- LLVM.fresh  -- TODO: proper names
-  f' <- LLVM.function fName llvmParams llvmRet $ \args -> lift . withScope $ do
+  f' <- LLVM.function fName llvmParams llvmRet $ \args -> withScope $ do
     _ <- namedBlock entryBlockName
     zipWithM_ allocate funcParams args
-    blockToLLVM funcBody >>= LLVM.ret
+    LLVM.ret =<< blockToLLVM funcBody
 
   addSymbol (AST.unVar funcName) f'
   pure f'
