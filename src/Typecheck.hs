@@ -129,19 +129,17 @@ inferExpr EIf{..} = do
     Nothing -> pure $ EIf (ifX, TOptional $ getType ifThen') ifPred' ifThen' Nothing
 
 inferExpr (EFunc (l, ann) n ps b) = do
-  -- parameters
   zipWithM_ setType (unVar <$> ps) (paramT ann)
-
-  -- body
   b' <- inferBlock b
 
-  -- return
   let earlyReturnT = [getType e | SReturn _ e <- blockBody b']
       returnExprT = maybe TUnit getType $ blockResult b'
+
   case earlyReturnT ++ [returnExprT] of
     [] -> unless (returnT ann == TUnit) throwTypeError
     xs -> unless (all (== returnT ann) xs) throwTypeError
 
+  setType (unVar n) ann
   pure $ EFunc (l, ann) n ps b'
 
 inferExpr EAssign{..} = do

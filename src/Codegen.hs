@@ -313,38 +313,3 @@ foreign import ccall "dynamic" haskFun :: FunPtr (IO Int) -> IO Int
 run :: FunPtr a -> IO Int
 run fn = haskFun (castFunPtr fn :: FunPtr (IO Int))
 
-{-
-import Control.Exception (bracket)
-import Data.Text (Text)
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.IO as T
-
-import Data.FileEmbed (embedFileRelative)
-import Data.String.Conversions (cs)
-import System.Directory (removePathForcibly, withCurrentDirectory)
-import System.IO (hClose)
-import System.Posix.Temp (mkdtemp, mkstemps)
-import System.Process (callProcess)
-
--- https://github.com/danieljharvey/llvm-calc/blob/trunk/llvm-calc/src/Calc/Compile/RunLLVM.hs
-cRuntime :: Text
-cRuntime = T.decodeUtf8 $(embedFileRelative "static/runtime.c")
-
-compile :: LLVM.AST.Module -> FilePath -> IO ()
-compile llvmModule outfile =
-    bracket (mkdtemp "build") removePathForcibly $ \buildDir ->
-        withCurrentDirectory buildDir $ do
-            (llvm, llvmHandle) <- mkstemps "output" ".ll"
-            (runtime, runtimeHandle) <- mkstemps "runtime" ".c"
-
-            let moduleText = cs (ppllvm llvmModule)
-
-            T.hPutStrLn llvmHandle moduleText -- write the llvmmodule a file
-            T.hPutStrLn runtimeHandle cRuntime
-
-            hClose llvmHandle
-            hClose runtimeHandle
-
-            -- link the runtime with the assembly
-            callProcess "clang" ["-Wno-override-module", "-lm", llvm, runtime, "-o", "../" <> outfile]
--}
