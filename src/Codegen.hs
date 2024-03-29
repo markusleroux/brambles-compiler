@@ -23,6 +23,7 @@ import Foreign.Ptr
 import qualified LLVM.AST
 import qualified LLVM.AST.Type as LLVM.Type
 import qualified LLVM.AST.Typed as LLVM.Type
+import qualified LLVM.AST.Constant as LLVM.AST
 import qualified LLVM.AST.IntegerPredicate as LLVM.AST.IP
 import qualified LLVM.AST.FloatingPointPredicate as LLVM.AST.FP
 
@@ -70,7 +71,7 @@ class (ThrowsCodegenError m, MonadScoping m, Ord n) => MonadSymbolTable m n | m 
 
 instance MonadSymbolTable m n => MonadSymbolTable (LLVM.IRBuilderT m) n where
   getSymbolMb = lift . getSymbolMb
-  addSymbol = addSymbol
+  addSymbol n = lift . addSymbol n
 
 
 typeToLLVM 
