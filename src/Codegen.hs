@@ -1,21 +1,23 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Codegen 
   ( exprToLLVM
   , toLLVM
-  , compile 
   , LLVM.AST.Module
-  , LLVM.Pretty.ppllvm
   , CodegenError
+  , optimize
+  , jit
+  , run
   )
   where
 
 import qualified AST
 import Typecheck (getType)
 import Symbolize (MonadScoping, withScope)
+
+import Foreign.Ptr
 
 import qualified LLVM.AST
 import qualified LLVM.AST.Type as LLVM.Type
@@ -27,29 +29,23 @@ import qualified LLVM.IRBuilder.Constant as LLVMC
 import qualified LLVM.IRBuilder.Instruction as LLVM
 import qualified LLVM.IRBuilder.Module as LLVM
 import qualified LLVM.IRBuilder.Monad as LLVM
-import LLVM.Pretty (ppllvm)
+
+import LLVM.Passes
+import LLVM.Analysis
+import LLVM.Module
+import LLVM.Context
+import LLVM.ExecutionEngine as EE
 
 import Control.Monad.Identity (Identity, runIdentity)
 import Control.Monad.State
 import Control.Monad.Except (MonadError, ExceptT, runExceptT, throwError)
-import Control.Exception (bracket)
 
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromJust)
 
+import qualified Data.ByteString as B
 import Data.ByteString.Short (ShortByteString)
-import Data.Text (Text)
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.IO as T
-
-import Data.FileEmbed (embedFileRelative)
-import Data.String.Conversions (cs)
-import System.Directory (removePathForcibly, withCurrentDirectory)
-import System.IO (hClose)
-import System.Posix.Temp (mkdtemp, mkstemps)
-import System.Process (callProcess)
-
 
 data CodegenError = CodegenError
   deriving (Show)
@@ -88,7 +84,7 @@ typeToLLVM (AST.TOptional _) = undefined
 
 
 binOpToLLVM 
-  :: LLVM.MonadIRBuilder m 
+  :: (LLVM.MonadIRBuilder m, LLVM.MonadModuleBuilder m)
   => AST.Type 
   -> AST.BinOp 
   -> LLVM.AST.Operand 
@@ -119,7 +115,7 @@ binOpToLLVM t AST.Eq = case t of
 
 
 unOpToLLVM 
-  :: LLVM.MonadIRBuilder m 
+  :: (LLVM.MonadIRBuilder m, LLVM.MonadModuleBuilder m)
   => AST.Type 
   -> AST.UnOp 
   -> LLVM.AST.Operand 
@@ -142,10 +138,14 @@ entryBlockName = "entry"
 
 allocate ::
   ( MonadSymbolTable m n
+  , LLVM.MonadModuleBuilder m
   , LLVM.MonadIRBuilder m
   ) => AST.Var n -> LLVM.AST.Operand -> m LLVM.AST.Operand
 allocate (AST.V argName) arg = do
-  var <- LLVM.alloca (LLVM.Type.typeOf arg) {-count-}Nothing {-align-}0
+  t <- LLVM.Type.typeOf arg >>= \case
+    Left _ -> throwCodegenError
+    Right t -> pure t
+  var <- LLVM.alloca t {-count-}Nothing {-align-}0
   LLVM.store var {-align-}0 arg
   addSymbol argName var
   pure var
@@ -163,17 +163,17 @@ exprToLLVM
 exprToLLVM (AST.EIntLit _ v)   = pure $ LLVMC.int64 v
 exprToLLVM (AST.EFloatLit _ v) = pure $ LLVMC.double v
 exprToLLVM (AST.EBoolLit _ v)  = pure $ LLVMC.bit (if v then 1 else 0)
-exprToLLVM (AST.EVar _ (AST.V v))  = getSymbol v >>= flip LLVM.load {-align-}0
+exprToLLVM var@(AST.EVar _ (AST.V v))  = getSymbol v >>= flip (LLVM.load $ typeToLLVM $ getType var){-align-}0
 exprToLLVM (AST.EUnOp (_, t) op v) = case op of
   AST.Pos -> exprToLLVM v
   AST.Neg -> unOpToLLVM t op =<< exprToLLVM v
 exprToLLVM (AST.EBinOp (_, t) op e1 e2) = join $ binOpToLLVM t op <$> exprToLLVM e1 <*> exprToLLVM e2
-exprToLLVM AST.ECall{..}   = do
+exprToLLVM c@AST.ECall{..}   = do
   args' <- mapM exprToLLVM callArgs
   f <- case callName of  -- TODO
     AST.EVar _ (AST.V v) -> getSymbol v
     _ -> error "Codegen error"
-  LLVM.call f [(arg, []) | arg <- args']
+  LLVM.call (typeToLLVM $ getType c) f [(arg, []) | arg <- args']
 exprToLLVM AST.EAssign{..} = allocate assignVar =<< exprToLLVM assignExpr
 exprToLLVM AST.EBlock{..}  = blockToLLVM unBlock
 exprToLLVM AST.EIf{..} = mdo
