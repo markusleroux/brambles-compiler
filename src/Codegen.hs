@@ -262,13 +262,62 @@ runCodegen = runIdentity . runCodegenT
 
 toLLVM :: forall n. Ord n => AST.Expr n 'AST.Typed -> Either CodegenError LLVM.AST.Module
 toLLVM expr = runCodegen $ do
-    printInt <- LLVM.extern "printint" [LLVM.Type.i32] LLVM.Type.i32
+    LLVM.function "main" [] LLVM.Type.i64 $ \_ -> do
+        LLVM.ret =<< exprToLLVM expr
 
-    LLVM.function "main" [] LLVM.Type.i32 $ \_ -> do
-        e <- exprToLLVM expr
-        _ <- LLVM.call printInt [(e, [])]
+optimize :: LLVM.AST.Module -> IO LLVM.AST.Module
+optimize astMod = do
+  withContext $ \ctx -> do
+    jit ctx $ \executionEngine ->
+      withModuleFromAST ctx astMod $ \m -> do
+        putStrLn "\nLLVM IR (pre-optimization)"
+        putStrLn "--------------------------"
+        moduleLLVMAssembly m >>= B.putStr
 
-        LLVM.ret $ LLVMC.int32 0
+        verify m
+        runPasses passSpec m
+        optmod <- moduleAST m
+
+        putStrLn "\nLLVM IR (post-optimization)"
+        putStrLn "---------------------------"
+        moduleLLVMAssembly m >>= B.putStr
+
+        EE.withModuleInEngine executionEngine m $ \ee ->
+          EE.getFunction ee "main" >>= \case
+            Just fn -> do
+              res <- run fn
+              putStrLn $ "Evaluated to: " ++ show res
+            Nothing -> pure ()
+          
+        pure optmod
+  where
+    passSpec = PassSetSpec [CuratedPassSet 3] Nothing
+
+jit :: Context -> (EE.MCJIT -> IO a) -> IO a
+jit c = EE.withMCJIT c optlevel model ptrelim fastins
+  where
+    optlevel = Nothing
+    model    = Nothing
+    ptrelim  = Nothing
+    fastins  = Nothing
+
+foreign import ccall "dynamic" haskFun :: FunPtr (IO Int) -> IO Int
+
+run :: FunPtr a -> IO Int
+run fn = haskFun (castFunPtr fn :: FunPtr (IO Int))
+
+{-
+import Control.Exception (bracket)
+import Data.Text (Text)
+import qualified Data.Text.Encoding as T
+import qualified Data.Text.IO as T
+
+import Data.FileEmbed (embedFileRelative)
+import Data.String.Conversions (cs)
+import System.Directory (removePathForcibly, withCurrentDirectory)
+import System.IO (hClose)
+import System.Posix.Temp (mkdtemp, mkstemps)
+import System.Process (callProcess)
 
 -- https://github.com/danieljharvey/llvm-calc/blob/trunk/llvm-calc/src/Calc/Compile/RunLLVM.hs
 cRuntime :: Text
@@ -291,4 +340,4 @@ compile llvmModule outfile =
 
             -- link the runtime with the assembly
             callProcess "clang" ["-Wno-override-module", "-lm", llvm, runtime, "-o", "../" <> outfile]
-
+-}
