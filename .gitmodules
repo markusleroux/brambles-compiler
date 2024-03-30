@@ -1,6 +1,3 @@
-[submodule "external/llvm-hs-pretty"]
-	path = external/llvm-hs-pretty
-	url = ../llvm-hs-pretty
 [submodule "external/llvm-hs"]
 	path = external/llvm-hs
 	url = git@github.com:llvm-hs/llvm-hs.git
