@@ -75,6 +75,10 @@ exprTests =
         , testCase "EAssignment in block" $ 
             testSExprParser "{ x = 3; }" 
               @?= EBlock (Block () [SExpr () $ EAssign () (V "x") (EIntLit () 3)] Nothing)
+
+        {- Currently failing:
+         -   - 3 = 4 (succeeds)
+         -}
         ]
   where
     testSExprParser = testParser exprP undecExpr
