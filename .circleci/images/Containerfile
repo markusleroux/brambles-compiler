@@ -1,0 +1,33 @@
+FROM alpine:latest
+
+# Required by circle-ci (https://circleci.com/docs/custom-images/)
+RUN apk --no-cache add \
+    git \
+    openssh
+
+RUN apk --no-cache add \
+    musl-dev \
+    ncurses-dev \
+    libffi-dev \
+    libxml2 \
+    clang15 \
+    llvm15-static \
+    llvm15-dev
+
+# Update alternatives
+RUN ln -s /usr/lib/libxml2.so.2 /usr/lib/libxml2.so && \
+    ln -s /usr/bin/clang-15 /usr/bin/clang && \
+    ln -s /usr/bin/clang++-15 /usr/bin/clang++
+
+ENV CC='clang'
+ENV CXX='clang++'
+
+RUN apk --no-cache add cabal \
+    && cabal update
+
+# https://stackoverflow.com/questions/20349104/using-gcc-instead-of-clang-in-ghci-or-ghc
+RUN sed -i \
+    -e 's/("C++ compiler command", "g++")/("C++ compiler command", "clang++-15")/g'\
+    -e 's/("C compiler command", "gcc")/("C compiler command", "clang-15")/g' \
+    "$(ghc --print-libdir)/settings"
+
