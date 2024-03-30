@@ -1,14 +1,13 @@
 module Main where
 
 import qualified AST
-import Parser (exprP, programP)
-import Typecheck (runTypechecking, inferExpr, TypeError, Typechecking)
-import qualified LLVM
+import Parser (exprP)
+import Typecheck (runTypechecking, inferExpr, TypeError)
+import qualified Codegen (CodegenError, Module, toLLVM, optimize, jit, run)
 
 import Control.Monad.Except
-import Control.Monad.IO.Class (liftIO)
 import qualified Data.Text.Lazy.IO as TIO
-import System.Console.Haskeline (InputT, defaultSettings, getInputLine, runInputT)
+import System.Console.Haskeline (defaultSettings, getInputLine, runInputT)
 import Text.Parsec (parse, ParseError)
 
 import Options.Applicative hiding (ParseError)
@@ -68,25 +67,26 @@ doCompileParser =
             <> help "Compile output to file"
 
 data Printers = Printers
-    { astPrinter :: Maybe (AST.Expr AST.Name 'AST.Parsed -> IO ())
+    { astPrinter      :: Maybe (AST.Expr AST.Name 'AST.Parsed -> IO ())
     , typedAstPrinter :: Maybe (AST.Expr AST.Name 'AST.Typed -> IO ())
-    , irPrinter :: Maybe (LLVM.Module -> IO ())
-    , compilePrinter :: Maybe (LLVM.Module -> IO ())
+    , irPrinter       :: Maybe (Codegen.Module -> IO ())
+    , compilePrinter  :: Maybe (Codegen.Module -> IO ())
     }
 
 fromOptions :: REPLOptions -> Printers
 fromOptions REPLOptions{..} =
     Printers
-        { astPrinter = Just print
+        { astPrinter      = Just print
         , typedAstPrinter = if typedAST then Just print else Nothing
-        , irPrinter = if ir then Just (TIO.putStrLn . LLVM.ppllvm) else Nothing
-        , compilePrinter = flip LLVM.compile <$> compile
+        , irPrinter       = Nothing -- if ir then Just (TIO.putStrLn . Codegen.ppllvm) else Nothing
+        , compilePrinter  = Nothing -- flip Codegen.compile <$> compile
         }
 
 
 data REPLError
   = ParseError ParseError
   | TypecheckError TypeError
+  | CodegenError Codegen.CodegenError
   deriving (Show)
 
 runAndPrintErrors :: Printers -> String -> IO ()
@@ -97,16 +97,23 @@ runAndPrintErrors p input =
       parsedAST <- withExceptT ParseError $
           liftEither $ parse exprP "<stdin>" line
 
+      lift $ putStrLn "\nAST (parsed)"
+      lift $ putStrLn "---------------------------"
       runPrinter astPrinter parsedAST
 
-      let t :: Typechecking AST.Name (AST.Expr AST.Name 'AST.Typed) = inferExpr parsedAST
       typecheckedAST <- withExceptT TypecheckError $
-          liftEither $ runTypechecking t
+          liftEither $ runTypechecking $ inferExpr parsedAST
+
+      lift $ putStrLn "\nAST (typed)"
+      lift $ putStrLn "---------------------------"
       runPrinter typedAstPrinter typecheckedAST
 
-      let compiledModule = LLVM.toLLVM typecheckedAST
-      runPrinter irPrinter compiledModule
-      runPrinter compilePrinter compiledModule
+      compiledModule <- withExceptT CodegenError $
+        liftEither $ Codegen.toLLVM typecheckedAST
+      lift $ Codegen.optimize compiledModule
+      pure ()
+      -- runPrinter irPrinter compiledModule
+      -- runPrinter compilePrinter compiledModule
   in
     runExceptT (run p input) >>= either print pure
   where

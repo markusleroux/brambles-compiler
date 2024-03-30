@@ -1,1 +1,8 @@
-packages: ./ ./external/llvm-hs-pretty/
+packages: 
+    ./ 
+    ./external/llvm-hs/llvm-hs-pure/
+    ./external/llvm-hs/llvm-hs/
+
+constraints:
+    llvm-hs +llvm-with-rtti +debug
+

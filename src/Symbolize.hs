@@ -46,7 +46,14 @@ class MonadError SymbolizeException m => ThrowsSymbolizeException m where
 class Monad m => MonadScoping m where
     withScope :: m a -> m a
 
-class (ThrowsSymbolizeException m, MonadScoping m) => MonadSymbolize m sym where
+    default withScope :: MonadState s m => m a -> m a
+    withScope computation = do
+        outerScope <- get     -- save the outer scope
+        result <- computation -- run the computation
+        put outerScope        -- restore the outer scope
+        pure result
+
+class (ThrowsSymbolizeException m, MonadScoping m) => MonadSymbolize m sym | m -> sym where
     getSymMb :: Name -> m (Maybe sym)
     createSym :: Name -> m sym
 
@@ -96,14 +103,7 @@ newtype IncrementalSymbolizeM m a = IncrementalSymbolizeM
           (StateT (Map String Int, [Int]) m) a
     }
     deriving newtype (Functor, Applicative, Monad, MonadState (Map String Int, [Int]), MonadIO, MonadError SymbolizeException)
-    deriving anyclass (ThrowsSymbolizeException)
-
-instance Monad m => MonadScoping (IncrementalSymbolizeM m) where
-    withScope computation = do
-        outerScope <- get -- save the outer scope
-        result <- computation -- run the computation
-        put outerScope -- restore the outer scope
-        pure result
+    deriving anyclass (ThrowsSymbolizeException, MonadScoping)
 
 instance Monad m => MonadSymbolize (IncrementalSymbolizeM m) Int where
     getSymMb name = gets $ Map.lookup name . fst
