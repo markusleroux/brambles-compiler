@@ -2,23 +2,23 @@ version: 2.1
 jobs:
   test:
     docker:
-      - image: haskell:9.2.8
+      - image: markusleroux/llvm-cabal:0.0.1
     steps:
       - checkout
-      - run: git submodule sync
-      - run: git submodule update --init
+      - run: git submodule sync --recursive
+      - run: git submodule update --init --recursive
       - restore_cache:
           name: Restore Cached Artifacts
           key: haskell-artifacts-{{ checksum "compiler.cabal" }}
       - run:
           name: Update dependencies
-          command: cabal new-update && cabal new-install --lib
+          command: cabal update && cabal install --lib
       - run:
           name: Compile
-          command: cabal new-build
+          command: cabal build
       - run:
           name: Build tests
-          command: cabal new-build --enable-tests
+          command: cabal build --enable-tests
       - save_cache:
           name: Cache Artifacts
           key: haskell-artifacts-{{ checksum "compiler.cabal" }}
