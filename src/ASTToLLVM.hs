@@ -125,6 +125,10 @@ entryBlockName = "entry"
 alloca :: LLVM.MonadIRBuilder m => LLVM.Type.Type -> m LLVM.AST.Operand
 alloca t = LLVM.alloca t {-count-}Nothing {-align-}0
 
+store :: LLVM.MonadIRBuilder m => LLVM.AST.Operand -> LLVM.AST.Operand -> m ()
+store at = LLVM.store at {-align-}0
+
+
 allocate ::
   ( MonadSymbolTable m n
   , LLVM.MonadModuleBuilder m
@@ -135,7 +139,7 @@ allocate (AST.V argName) arg = do
     Left _ -> throwCodegenError
     Right t -> pure t
   var <- alloca t
-  LLVM.store var {-align-}0 arg
+  store var arg
   addSymbol argName var
   pure var
 
@@ -171,7 +175,7 @@ exprToLLVM c@AST.ECall{..}   = do
   LLVM.call (typeToLLVM $ getType c) f [(arg, []) | arg <- args']
 exprToLLVM AST.EAssign{..} = do
   var <- getSymbolFromVar assignVar
-  LLVM.store var 0 =<< exprToLLVM assignExpr
+  store var =<< exprToLLVM assignExpr
   pure var
 exprToLLVM AST.EBlock{..}  = blockToLLVM unBlock
 exprToLLVM AST.EIf{..} = mdo
@@ -260,8 +264,6 @@ instance (Monad m, Ord n) => MonadSymbolTable (CodegenM m n) n where
   getSymbolMb = gets . Map.lookup
   addSymbol n = modify . Map.insert n
 
--- TODO: lowering rather than code-gen?
--- TODO: bracket errors in codegen
 runCodegenT :: Monad m => CodegenM m n a -> m (Either CodegenError LLVM.AST.Module)
 runCodegenT = runExceptT . LLVM.buildModuleT "test" . (`evalStateT` Map.empty) . runCodegenM
 
