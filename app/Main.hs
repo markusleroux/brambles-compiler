@@ -1,5 +1,6 @@
 module Main where
 
+import CLI
 import qualified Brambles.Frontend.AST as AST
 import Brambles.Frontend.Parser (exprP)
 import Brambles.Frontend.Typecheck (runTypechecking, inferExpr, TypeError)
@@ -9,61 +10,23 @@ import Control.Monad.Except
 import System.Console.Haskeline (defaultSettings, getInputLine, runInputT)
 import Text.Parsec (parse, ParseError)
 
-import Options.Applicative hiding (ParseError)
-
-data REPLOptions = REPLOptions
-    { typedAST :: !Bool
-    , ir :: !Bool
-    , compile :: Maybe FilePath
-    }
 
 main :: IO () -- REPL
 main = getREPLOptions >>= repl
 
-getREPLOptions :: IO REPLOptions
-getREPLOptions =
-    execParser $
-        info (helper <*> commandLine) fullDesc
-
 repl :: REPLOptions -> IO () -- Execute
 repl options =
     let 
-      promptAndRun = getInputLine "brambles> " >>= \case
-          Nothing -> liftIO $ putStrLn "quit"
-          Just input -> liftIO (runAndPrintErrors printers input) >> promptAndRun
+      promptAndRun = prompt >>= \case
+          Nothing    -> liftIO quit
+          Just input -> liftIO (run input) >> promptAndRun
      in 
       runInputT defaultSettings promptAndRun
      where 
+      prompt   = getInputLine "brambles> "
       printers = fromOptions options
-
-commandLine :: Parser REPLOptions
-commandLine =
-    REPLOptions
-        <$> printTypedASTParser
-        <*> printIRParser
-        <*> optional doCompileParser
-
-printTypedASTParser :: Parser Bool
-printTypedASTParser =
-    switch $
-        long "typed"
-            <> short 't'
-            <> help "Print the typed AST to stdout"
-
-
-printIRParser :: Parser Bool
-printIRParser =
-    switch $
-        long "ir"
-            <> short 'i'
-            <> help "Print the IR to stdout"
-
-doCompileParser :: Parser FilePath
-doCompileParser =
-    strOption $
-        long "output"
-            <> short 'o'
-            <> help "Compile output to file"
+      quit     = putStrLn "quit"
+      run      = runAndPrintErrors printers
 
 data Printers = Printers
     { astPrinter      :: Maybe (AST.Expr AST.Name 'AST.Parsed -> IO ())
@@ -93,22 +56,19 @@ runAndPrintErrors p input =
   let
     run :: Printers -> String -> ExceptT REPLError IO ()
     run Printers{..} line = do
-      parsedAST <- withExceptT ParseError $
-          liftEither $ parse exprP "<stdin>" line
+      parsedAST <- getParsed line
 
       lift $ putStrLn "\nAST (parsed)"
       lift $ putStrLn "---------------------------"
       runPrinter astPrinter parsedAST
 
-      typecheckedAST <- withExceptT TypecheckError $
-          liftEither $ runTypechecking $ inferExpr parsedAST
+      typecheckedAST <- getTyped parsedAST
 
       lift $ putStrLn "\nAST (typed)"
       lift $ putStrLn "---------------------------"
       runPrinter typedAstPrinter typecheckedAST
 
-      compiledModule <- withExceptT CodegenError $
-        liftEither $ Codegen.toLLVM typecheckedAST
+      compiledModule <- getCompiled typecheckedAST
       lift $ Codegen.optimize compiledModule
       pure ()
       -- runPrinter irPrinter compiledModule
@@ -117,4 +77,8 @@ runAndPrintErrors p input =
     runExceptT (run p input) >>= either print pure
   where
     runPrinter pMb v = liftIO . sequence_ $ pMb <*> pure v
+
+    getParsed   = withExceptT ParseError     . liftEither . parse exprP "<stdin>"
+    getTyped    = withExceptT TypecheckError . liftEither . runTypechecking . inferExpr
+    getCompiled = withExceptT CodegenError   . liftEither . Codegen.toLLVM
 
