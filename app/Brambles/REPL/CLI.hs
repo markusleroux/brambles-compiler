@@ -1,4 +1,4 @@
-module CLI where
+module Brambles.REPL.CLI where
 
 import Options.Applicative hiding (ParseError)
 

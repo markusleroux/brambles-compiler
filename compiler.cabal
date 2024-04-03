@@ -86,7 +86,7 @@ executable brambles-repl
     import: brambles-common
 
     hs-source-dirs:   app
-    main-is:          Main.hs
+    main-is:          Brambles/REPL/Main.hs
 
     build-depends:
           brambles-frontend

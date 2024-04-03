@@ -1,6 +1,6 @@
 module Main where
 
-import CLI
+import Brambles.REPL.CLI
 import qualified Brambles.Frontend.AST as AST
 import Brambles.Frontend.Parser (exprP)
 import Brambles.Frontend.Typecheck (runTypechecking, inferExpr, TypeError)
