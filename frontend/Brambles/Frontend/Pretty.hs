@@ -1,11 +1,15 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Pretty where
+module Brambles.Frontend.Pretty where
 
-import AST
-import Parser ()
+import Prelude hiding (exp)
+
+import Brambles.Frontend.AST
+import Brambles.Frontend.Parser ()
+
 import Data.Maybe (maybeToList)
 import Data.Bool (bool)
+
 import Prettyprinter (
     Doc,
     Pretty (pretty),
@@ -20,7 +24,6 @@ import Prettyprinter (
     vsep,
     (<+>),
  )
-import Prelude hiding (exp)
 
 -- TODO:
 -- proper formatting

@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Codegen 
+module Brambles.Backend.Codegen 
   ( exprToLLVM
   , toLLVM
   , LLVM.AST.Module
@@ -12,12 +12,11 @@ module Codegen
   )
   where
 
-import ASTToLLVM (exprToLLVM, toLLVM, CodegenError)
+import Brambles.Backend.ASTToLLVM (exprToLLVM, toLLVM, CodegenError)
 
 import Foreign.Ptr (FunPtr, castFunPtr)
 
 import qualified LLVM.AST
-
 import LLVM.Passes
 import LLVM.Analysis (verify)
 import LLVM.Module (moduleAST, moduleLLVMAssembly, withModuleFromAST)

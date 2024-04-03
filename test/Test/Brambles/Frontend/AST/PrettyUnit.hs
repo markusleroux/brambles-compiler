@@ -1,8 +1,9 @@
-module AST.PrettyUnit where
+module Test.Brambles.Frontend.AST.PrettyUnit where
 
-import AST
-import Parser
-import Pretty
+import Brambles.Frontend.AST
+import Brambles.Frontend.Parser
+import Brambles.Frontend.Pretty
+
 import Prettyprinter
 import Prettyprinter.Render.String
 import Test.Tasty

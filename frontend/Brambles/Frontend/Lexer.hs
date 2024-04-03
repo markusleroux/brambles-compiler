@@ -1,8 +1,9 @@
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
-module Lexer where
+module Brambles.Frontend.Lexer where
 
 import Data.Functor (($>))
+
 import Text.Parsec (alphaNum, char, letter, oneOf, (<|>))
 import qualified Text.Parsec.Token as Tok
 

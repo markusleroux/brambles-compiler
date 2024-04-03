@@ -1,0 +1,128 @@
+cabal-version:      3.0
+name:               brambles-compiler
+version:            0.1.0.0
+
+extra-source-files: static/*.c
+
+common brambles-common
+    default-language: Haskell2010
+
+    build-depends: 
+          base          >=4.16
+
+    default-extensions:
+          GeneralizedNewtypeDeriving
+        , LambdaCase
+        , MultiParamTypeClasses
+        , FlexibleContexts
+        , FlexibleInstances
+        , DeriveTraversable
+        , ViewPatterns
+        , RecordWildCards
+        , DataKinds
+        , TypeFamilies
+        , InstanceSigs
+        , ScopedTypeVariables
+        , DeriveAnyClass
+        , DerivingStrategies
+        , DefaultSignatures
+        , FunctionalDependencies
+        , RankNTypes
+        , ConstraintKinds
+        , RecursiveDo
+
+    ghc-options:         -Wall
+
+library brambles-frontend
+    import: brambles-common
+
+    hs-source-dirs:   frontend
+
+    visibility: public
+
+    exposed-modules: 
+          Brambles.Frontend.Parser
+        , Brambles.Frontend.AST
+        , Brambles.Frontend.Lexer
+        , Brambles.Frontend.Pretty
+        , Brambles.Frontend.Symbolize
+        , Brambles.Frontend.Typecheck
+
+    build-depends:    
+          llvm-hs-pure
+        , parsec             ^>=3.1.1
+        , mtl                ^>=2.2.2
+        , multiplate         ^>=0.0.3
+        , containers         ^>=0.6.4
+        , prettyprinter      ^>=1.7.1
+
+library brambles-backend
+    import: brambles-common
+
+    hs-source-dirs:   backend
+
+    visibility: public
+
+    exposed-modules: 
+          Brambles.Backend.ASTToLLVM
+        , Brambles.Backend.Codegen
+
+    build-depends:    
+          brambles-frontend
+        , llvm-hs
+        , llvm-hs-pure
+        , mtl                ^>=2.2.2
+        , containers         ^>=0.6.4
+        , text                <=2.0
+        , directory          ^>=1.3.6
+        , unix               ^>=2.7.2
+        , process            ^>=1.6.13
+        , string-conversions ^>=0.4.0
+        , file-embed         ^>=0.0.16
+        , bytestring         ^>=0.11
+
+
+executable brambles-repl
+    import: brambles-common
+
+    hs-source-dirs:   app
+    main-is:          Brambles/REPL/Main.hs
+
+    build-depends:
+          brambles-frontend
+        , brambles-backend
+        , haskeline            ^>=0.8.2
+        , parsec               ^>=3.1.17
+        , optparse-applicative ^>=0.18.1
+        , text                  <=2.0
+        , mtl                  ^>=2.2
+
+
+test-suite unit-test
+    import: brambles-common
+
+    type: exitcode-stdio-1.0
+    main-is: Test/Brambles/Main.hs 
+
+    hs-source-dirs: test
+
+    other-modules: 
+          Test.Brambles.Frontend.AST.PrettyUnit
+        , Test.Brambles.Frontend.Parser.Unit
+        , Test.Brambles.Frontend.Parser.Gen
+        , Test.Brambles.Frontend.Parser.Prop
+        , Test.Brambles.Frontend.Symbolizer.Unit
+        , Test.Brambles.Util
+
+    build-depends:
+          brambles-frontend
+        , brambles-backend
+        , tasty
+        , tasty-hunit
+        , tasty-hedgehog   ^>=1.4.0
+        , hedgehog         ^>=1.4
+        , parsec           ^>=3.1.17
+        , prettyprinter    ^>=1.7.1
+        , multiplate       ^>=0.0.3
+        , transformers     ^>=0.5.6
+

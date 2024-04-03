@@ -1,6 +1,6 @@
-module Util where
+module Test.Brambles.Util where
 
-import AST
+import Brambles.Frontend.AST
 
 import Data.Void
 

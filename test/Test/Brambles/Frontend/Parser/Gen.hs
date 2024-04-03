@@ -1,15 +1,16 @@
-module Parser.Gen where
+module Test.Brambles.Frontend.Parser.Gen where
 
 import Prelude hiding (floatRange)
 
-import qualified AST
+import qualified Brambles.Frontend.AST as AST
+import Brambles.Frontend.Lexer (identifier)
+import Brambles.Frontend.Parser (SourceLoc(..))
+
 import Data.Either (isRight)
 import Hedgehog (Gen)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
-import Lexer (identifier)
 import Text.Parsec (parse)
-import Parser (SourceLoc(..))
 
 paramRange = Range.linear 0 5
 idRange = Range.linear 1 10

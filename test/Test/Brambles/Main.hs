@@ -1,9 +1,10 @@
 module Main where
 
-import AST.PrettyUnit
-import Parser.Prop
-import Parser.Unit
-import Symbolizer.Unit
+import Test.Brambles.Frontend.AST.PrettyUnit
+import Test.Brambles.Frontend.Parser.Prop
+import Test.Brambles.Frontend.Parser.Unit
+import Test.Brambles.Frontend.Symbolizer.Unit
+
 import Test.Tasty
 
 main :: IO ()
