@@ -3,10 +3,9 @@ module Main where
 import qualified Brambles.Frontend.AST as AST
 import Brambles.Frontend.Parser (exprP)
 import Brambles.Frontend.Typecheck (runTypechecking, inferExpr, TypeError)
-import qualified Brambles.Backend.Codegen as Codegen (CodegenError, Module, toLLVM, optimize, jit, run)
+import qualified Brambles.Backend.Codegen as Codegen
 
 import Control.Monad.Except
-import qualified Data.Text.Lazy.IO as TIO
 import System.Console.Haskeline (defaultSettings, getInputLine, runInputT)
 import Text.Parsec (parse, ParseError)
 
@@ -29,7 +28,7 @@ getREPLOptions =
 repl :: REPLOptions -> IO () -- Execute
 repl options =
     let 
-      promptAndRun = getInputLine "womp> " >>= \case
+      promptAndRun = getInputLine "brambles> " >>= \case
           Nothing -> liftIO $ putStrLn "quit"
           Just input -> liftIO (runAndPrintErrors printers input) >> promptAndRun
      in 
