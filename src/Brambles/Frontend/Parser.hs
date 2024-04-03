@@ -1,7 +1,7 @@
-module Parser where
+module Brambles.Frontend.Parser where
 
-import AST
-import Lexer (
+import Brambles.Frontend.AST
+import Brambles.Frontend.Lexer (
     assignment,
     bool,
     boolType,

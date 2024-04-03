@@ -1,8 +1,8 @@
 {-# LANGUAGE UndecidableInstances #-}
-module Typecheck where
+module Brambles.Frontend.Typecheck where
 
-import AST
-import Parser (SourceLoc)
+import Brambles.Frontend.AST
+import Brambles.Frontend.Parser (SourceLoc)
 
 import Control.Monad (unless, zipWithM_, (>=>))
 import Control.Monad.Identity (Identity, runIdentity)
@@ -14,6 +14,7 @@ import Control.Monad.State (
     modify,
     gets,
  )
+
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 

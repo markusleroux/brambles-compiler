@@ -26,20 +26,23 @@ common compiler-common
         , DerivingStrategies
         , DefaultSignatures
         , FunctionalDependencies
+        , RankNTypes
+        , ConstraintKinds
+        , RecursiveDo
 
 library compiler-lib
     import: compiler-common
 
     hs-source-dirs:   src
     exposed-modules: 
-          Parser
-        , AST
-        , Lexer
-        , Pretty
-        , Symbolize
-        , ASTToLLVM
-        , Codegen
-        , Typecheck
+          Brambles.Frontend.Parser
+        , Brambles.Frontend.AST
+        , Brambles.Frontend.Lexer
+        , Brambles.Frontend.Pretty
+        , Brambles.Frontend.Symbolize
+        , Brambles.Frontend.Typecheck
+        , Brambles.Backend.ASTToLLVM
+        , Brambles.Backend.Codegen
 
     build-depends:    
         , parsec             ^>=3.1.17.0
@@ -87,15 +90,15 @@ common test-common
 test-suite unit-test
     import: test-common
     type: exitcode-stdio-1.0
-    main-is: Suite.hs 
+    main-is: Test/Brambles/Main.hs 
 
     other-modules: 
-          AST.PrettyUnit
-        , Parser.Unit
-        , Parser.Gen
-        , Parser.Prop
-        , Symbolizer.Unit
-        , Util
+          Test.Brambles.Frontend.AST.PrettyUnit
+        , Test.Brambles.Frontend.Parser.Unit
+        , Test.Brambles.Frontend.Parser.Gen
+        , Test.Brambles.Frontend.Parser.Prop
+        , Test.Brambles.Frontend.Symbolizer.Unit
+        , Test.Brambles.Util
 
     build-depends:
           parsec           ^>=3.1.17.0

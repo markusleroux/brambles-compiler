@@ -1,10 +1,11 @@
-module Parser.Prop where
+module Test.Brambles.Frontend.Parser.Prop where
 
-import qualified AST
+import qualified Brambles.Frontend.AST
+import Brambles.Frontend.Parser (exprP, programP, statementP, typeP)
+import Brambles.Frontend.Pretty
+import Test.Brambles.Frontend.Parser.Gen
+
 import Hedgehog
-import Parser (exprP, programP, statementP, typeP)
-import Parser.Gen
-import Pretty
 import Prettyprinter
 import Prettyprinter.Render.String
 import Test.Tasty (TestTree, testGroup)

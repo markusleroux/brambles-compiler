@@ -1,9 +1,9 @@
 module Main where
 
-import qualified AST
-import Parser (exprP)
-import Typecheck (runTypechecking, inferExpr, TypeError)
-import qualified Codegen (CodegenError, Module, toLLVM, optimize, jit, run)
+import qualified Brambles.Frontend.AST as AST
+import Brambles.Frontend.Parser (exprP)
+import Brambles.Frontend.Typecheck (runTypechecking, inferExpr, TypeError)
+import qualified Brambles.Backend.Codegen as Codegen (CodegenError, Module, toLLVM, optimize, jit, run)
 
 import Control.Monad.Except
 import qualified Data.Text.Lazy.IO as TIO

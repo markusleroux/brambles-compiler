@@ -1,6 +1,9 @@
-module Symbolize where
+module Brambles.Frontend.Symbolize where
 
-import AST
+import Prelude hiding (exp)
+
+import Brambles.Frontend.AST
+
 import Control.Monad.Except (
     ExceptT,
     MonadError,
@@ -18,9 +21,9 @@ import Control.Monad.State (
     put,
     state,
  )
+
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Prelude hiding (exp)
 
 -- all scoping is accomplished through a naming pass, which associates a (globally) unique identifier with each name
 

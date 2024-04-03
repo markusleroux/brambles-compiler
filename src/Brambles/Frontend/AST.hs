@@ -1,5 +1,5 @@
-{-# LANGUAGE UndecidableInstances, ConstraintKinds, StandaloneDeriving #-}
-module AST where
+{-# LANGUAGE UndecidableInstances, StandaloneDeriving #-}
+module Brambles.Frontend.AST where
 
 import Data.Generics.Multiplate (Multiplate (..))
 import GHC.Exts (Constraint)

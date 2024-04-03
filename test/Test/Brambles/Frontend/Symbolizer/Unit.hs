@@ -1,16 +1,16 @@
-{-# LANGUAGE RankNTypes #-}
+module Test.Brambles.Frontend.Symbolizer.Unit where
 
-module Symbolizer.Unit where
+import Brambles.Frontend.AST
+import Brambles.Frontend.Symbolize
+import Brambles.Frontend.Parser (SourceLoc(..))
 
-import AST
+import Test.Brambles.Util
+
 import Data.Functor.Constant
 import Data.Foldable
 import Data.Generics.Multiplate
-import Symbolize
 import Test.Tasty
 import Test.Tasty.HUnit
-import Parser (SourceLoc(..))
-import Util
 
 nestedBlock :: [Stmt Name 'Plain]
 nestedBlock = 

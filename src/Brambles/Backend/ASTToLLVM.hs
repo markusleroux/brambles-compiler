@@ -1,13 +1,11 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecursiveDo #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE OverloadedStrings, UndecidableInstances #-}
 
-module ASTToLLVM where
+module Brambles.Backend.ASTToLLVM where
 
-import qualified AST
-import Typecheck (getType)
-import Symbolize (MonadScoping, withScope)
+import qualified Brambles.Frontend.AST as AST
+import Brambles.Frontend.Typecheck (getType)
+import Brambles.Frontend.Symbolize (MonadScoping, withScope)
 
 import qualified LLVM.AST
 import qualified LLVM.AST.Type as LLVM.Type

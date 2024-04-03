@@ -1,8 +1,9 @@
-module Parser.Unit where
+module Test.Brambles.Frontend.Parser.Unit where
 
-import AST
-import Util
-import Parser
+import Brambles.Frontend.AST
+import Brambles.Frontend.Parser
+import Test.Brambles.Util
+
 import Test.Tasty
 import Test.Tasty.HUnit
 import Text.Parsec (parse)
