@@ -4,74 +4,57 @@ module Brambles.Frontend.Lexer where
 
 import Data.Functor (($>))
 
-import Text.Parsec (alphaNum, char, letter, oneOf, (<|>))
-import qualified Text.Parsec.Token as Tok
+import Data.Void
 
-lexer :: Tok.TokenParser m
-lexer = Tok.makeTokenParser languageDef
-  where
-    opParser = oneOf ":!#$%&*+./<=>?@\\^|-~"
-    languageDef =
-        Tok.LanguageDef
-            { Tok.commentStart = "/*"
-            , Tok.commentEnd = "*/"
-            , Tok.commentLine = "//"
-            , Tok.nestedComments = False
-            , -- Identifiers
-              Tok.identStart = letter <|> char '_'
-            , Tok.identLetter = alphaNum <|> char '_'
-            , -- Ops
-              Tok.opStart = opParser
-            , Tok.opLetter = opParser
-            , -- Reserved
-              Tok.reservedNames = ["int", "float", "bool", "true", "false", "fn", "let", "while", "return", "if", "then", "else"]
-            , Tok.reservedOpNames = ["+", "-", "*", "/", ";", "->", "=", ":", "=="]
-            , -- Other
-              Tok.caseSensitive = True
-            }
+import Text.Megaparsec
+import qualified Text.Megaparsec.Char.Lexer as L
+import qualified Text.Megaparsec.Char as C
 
-spaceConsumer = Tok.whiteSpace lexer
+type Parser = Parsec Void String
 
-integerType = Tok.reserved lexer "int"
+spaceConsumer :: Parser ()
+spaceConsumer = L.space C.space1 (L.skipLineComment "//") (L.skipBlockComment "/*" "*/")
 
-floatType = Tok.reserved lexer "float"
+lexeme :: Parser a -> Parser a
+lexeme = L.lexeme spaceConsumer
 
-boolType = Tok.reserved lexer "bool"
+symbol :: String -> Parser String
+symbol = L.symbol spaceConsumer
 
-identifier = Tok.identifier lexer
+reservedWords = ["int", "float", "bool", "fn", "let", "while", "return", "if", "then", "else"]
 
-natural = Tok.integer lexer -- literals are always parsed as positive, c.f. UnOp
+keyword :: String -> Parser String
+keyword kw = lexeme $ C.string kw <* notFollowedBy (C.alphaNumChar <|> C.char '_')
 
-float = Tok.float lexer
+parens    = between (symbol "(") (symbol ")")
+braces    = between (symbol "{") (symbol "}")
+semicolon = symbol ";"
+comma     = symbol ","
+colon     = symbol ":"
 
-bool = (Tok.reserved lexer "true" $> True) <|> (Tok.reserved lexer "false" $> False)
+returnArrow = symbol "->"
+assignment  = symbol "="
+equality    = symbol "=="
 
-parens = Tok.parens lexer
+integerType = keyword "int"
+floatType   = keyword "float"
+boolType    = keyword "bool"
 
-braces = Tok.braces lexer
+fn          = keyword "fn"
+decl        = keyword "let"
+while       = keyword "while"
+ret         = keyword "return"
+ifLex       = keyword "if"
+thenLex     = keyword "then"
+elseLex     = keyword "else"
 
-commas = Tok.commaSep lexer
+bool    = keyword "true" $> True <|> keyword "false" $> False
+natural = lexeme L.decimal
+float   = lexeme L.float
 
-semicolon = Tok.reservedOp lexer ";"
+identifier = do
+  ident <- lexeme $ try ((:) <$> C.letterChar <*> many (C.alphaNumChar <|> C.char '_'))
+  if ident `elem` reservedWords
+    then fail $ "Identifier cannot be a reserved word: " ++ show ident
+    else pure ident
 
-colon = Tok.colon lexer
-
-fn = Tok.reserved lexer "fn"
-
-returnArrow = Tok.reservedOp lexer "->"
-
-assignment = Tok.reservedOp lexer "="
-
-equality = Tok.reservedOp lexer "=="
-
-decl = Tok.reserved lexer "let"
-
-while = Tok.reserved lexer "while"
-
-ret = Tok.reserved lexer "return"
-
-ifLex = Tok.reserved lexer "if"
-
-thenLex = Tok.reserved lexer "then"
-
-elseLex = Tok.reserved lexer "else"

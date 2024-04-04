@@ -10,13 +10,13 @@ import Data.Either (isRight)
 import Hedgehog (Gen)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
-import Text.Parsec (parse)
+import Text.Megaparsec (parse)
 
-paramRange = Range.linear 0 5
-idRange = Range.linear 1 10
-intRange = Range.exponential 0 1024
-floatRange = Range.exponentialFloat 0.0 1024.0
-blockLen = Range.linear 0 10
+paramRange    = Range.linear 0 5
+idRange       = Range.linear 1 10
+intRange      = Range.exponential 0 1024
+floatRange    = Range.exponentialFloat 0.0 1024.0
+blockLen      = Range.linear 0 10
 progStmtRange = Range.linear 0 10
 progFuncRange = Range.linear 0 10
 

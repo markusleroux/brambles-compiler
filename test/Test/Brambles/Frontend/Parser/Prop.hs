@@ -1,17 +1,19 @@
 module Test.Brambles.Frontend.Parser.Prop where
 
-import qualified Brambles.Frontend.AST
 import Brambles.Frontend.Parser (exprP, programP, statementP, typeP)
-import Brambles.Frontend.Pretty
-import Test.Brambles.Frontend.Parser.Gen
+import Brambles.Frontend.Lexer (Parser)
+import Brambles.Frontend.Pretty ()
+import Test.Brambles.Frontend.Parser.Gen (genExpr, genProgram, genStmt, genType)
 
-import Hedgehog
-import Prettyprinter
-import Prettyprinter.Render.String
+import Text.Megaparsec (parse)
+
+import Prettyprinter (defaultLayoutOptions, layoutPretty, pretty, Pretty)
+import Prettyprinter.Render.String (renderString)
+
+import Hedgehog (forAll, Gen, Property, property, tripping)
+
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Hedgehog (testProperty)
-import Text.Parsec (parse)
-import Text.Parsec.String (Parser)
 
 prop_prettyParserInverse :: (Show a, Pretty a, Eq a) => Parser a -> Gen a -> Property
 prop_prettyParserInverse parser g = property $ do

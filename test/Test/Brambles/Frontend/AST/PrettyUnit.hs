@@ -1,16 +1,20 @@
 module Test.Brambles.Frontend.AST.PrettyUnit where
 
-import Brambles.Frontend.AST
+import Prelude hiding (exp)
+
+import Brambles.Frontend.Lexer (Parser)
 import Brambles.Frontend.Parser
-import Brambles.Frontend.Pretty
+import Brambles.Frontend.Pretty ()
 
 import Prettyprinter
 import Prettyprinter.Render.String
+
 import Test.Tasty
 import Test.Tasty.HUnit
-import Text.Parsec (parse)
-import Text.Parsec.String (Parser)
+import Text.Megaparsec
 
+
+printingTests :: TestTree
 printingTests =
     testGroup
         "Printing"
