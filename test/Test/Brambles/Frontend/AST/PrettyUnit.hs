@@ -1,13 +1,14 @@
 module Test.Brambles.Frontend.AST.PrettyUnit where
 
-import Prelude hiding (exp)
+import Protolude hiding (exp)
+import Protolude.Error (error)
 
 import Brambles.Frontend.Lexer (Parser)
 import Brambles.Frontend.Parser
 import Brambles.Frontend.Pretty ()
 
 import Prettyprinter
-import Prettyprinter.Render.String
+import Prettyprinter.Render.Text
 
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -22,12 +23,12 @@ printingTests =
         , fnTests
         ]
 
-testPrinter :: Pretty a => Parser a -> String -> Assertion
+testPrinter :: Pretty a => Parser a -> Text -> Assertion
 testPrinter parser code = case parse parser "" code of
     Left err -> error $ show err
     Right exp -> makePrettyString exp @?= code
   where
-    makePrettyString = renderString . layoutPretty defaultLayoutOptions . pretty
+    makePrettyString = renderStrict . layoutPretty defaultLayoutOptions . pretty
 
 exprTests :: TestTree
 exprTests =

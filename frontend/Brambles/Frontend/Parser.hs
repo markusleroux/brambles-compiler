@@ -1,10 +1,12 @@
 module Brambles.Frontend.Parser where
 
+import Protolude hiding (Type, try, Prefix)
+
 import Brambles.Frontend.AST
 import Brambles.Frontend.Lexer (Parser)
 import qualified Brambles.Frontend.Lexer as L
 
-import Text.Megaparsec
+import Text.Megaparsec (getOffset, setOffset, parseError, observing, (<?>), sepBy, try, eof)
 import Control.Monad.Combinators.Expr
 
 data SourceLoc = SourceLoc

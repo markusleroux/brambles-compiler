@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Brambles.Backend.Codegen 
   ( exprToLLVM
@@ -12,9 +11,11 @@ module Brambles.Backend.Codegen
   )
   where
 
+import Protolude
+
 import Brambles.Backend.ASTToLLVM (exprToLLVM, toLLVM, CodegenError)
 
-import Foreign.Ptr (FunPtr, castFunPtr)
+import Foreign.Ptr (castFunPtr)
 
 import qualified LLVM.AST
 import LLVM.Passes
@@ -46,16 +47,16 @@ optimize astMod = do
   withContext $ \ctx -> do
     jit ctx $ \executionEngine ->
       withModuleFromAST ctx astMod $ \m -> do
-        putStrLn "\nLLVM IR (pre-optimization)"
-        putStrLn "--------------------------"
+        putText "\nLLVM IR (pre-optimization)"
+        putText "--------------------------"
         moduleLLVMAssembly m >>= B.putStr
 
         verify m
         runPasses passSpec m
         optmod <- moduleAST m
 
-        putStrLn "\nLLVM IR (post-optimization)"
-        putStrLn "---------------------------"
+        putText "\nLLVM IR (post-optimization)"
+        putText "---------------------------"
         moduleLLVMAssembly m >>= B.putStr
 
         EE.withModuleInEngine executionEngine m $ \ee ->

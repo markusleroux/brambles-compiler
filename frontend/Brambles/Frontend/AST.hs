@@ -1,8 +1,9 @@
 {-# LANGUAGE UndecidableInstances, StandaloneDeriving #-}
 module Brambles.Frontend.AST where
 
+import Protolude hiding (Type)
+
 import Data.Generics.Multiplate (Multiplate (..))
-import GHC.Exts (Constraint)
 import qualified Data.Kind as Kind (Type)
 
 data UnOp
@@ -55,7 +56,7 @@ type family XSReturn   (p :: Pass)
 type family XBlock     (p :: Pass)
 type family XProg      (p :: Pass)
 
-type Name = String
+type Name = Text
 
 newtype Var n = V { unVar :: n }
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable)

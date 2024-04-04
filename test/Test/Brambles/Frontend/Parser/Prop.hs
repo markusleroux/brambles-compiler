@@ -1,5 +1,7 @@
 module Test.Brambles.Frontend.Parser.Prop where
 
+import Protolude
+
 import Brambles.Frontend.Parser (exprP, programP, statementP, typeP)
 import Brambles.Frontend.Lexer (Parser)
 import Brambles.Frontend.Pretty ()
@@ -8,7 +10,7 @@ import Test.Brambles.Frontend.Parser.Gen (genExpr, genProgram, genStmt, genType)
 import Text.Megaparsec (parse)
 
 import Prettyprinter (defaultLayoutOptions, layoutPretty, pretty, Pretty)
-import Prettyprinter.Render.String (renderString)
+import Prettyprinter.Render.Text (renderStrict)
 
 import Hedgehog (forAll, Gen, Property, property, tripping)
 
@@ -20,7 +22,7 @@ prop_prettyParserInverse parser g = property $ do
     ast <- forAll g
     tripping ast printer parser'
   where
-    printer = renderString . layoutPretty defaultLayoutOptions . pretty
+    printer = renderStrict . layoutPretty defaultLayoutOptions . pretty
     parser' = parse parser ""
 
 parsingQuickTests :: TestTree

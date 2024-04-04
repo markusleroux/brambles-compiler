@@ -1,7 +1,10 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE OverloadedStrings, UndecidableInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Brambles.Backend.ASTToLLVM where
+
+import Protolude hiding (StateT, runStateT, evalStateT)
+import Protolude.Error
 
 import qualified Brambles.Frontend.AST as AST
 import Brambles.Frontend.Typecheck (getType)
@@ -19,11 +22,8 @@ import qualified LLVM.IRBuilder.Instruction as LLVM
 import qualified LLVM.IRBuilder.Module as LLVM
 import qualified LLVM.IRBuilder.Monad as LLVM
 
-import Control.Monad.Identity (Identity, runIdentity)
 import Control.Monad.State.Strict
-import Control.Monad.Except (MonadError, ExceptT, runExceptT, throwError)
 
-import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromJust)
 

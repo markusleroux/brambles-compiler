@@ -1,29 +1,10 @@
 module Brambles.Frontend.Symbolize where
 
-import Prelude hiding (exp)
+import Protolude
 
 import Brambles.Frontend.AST
 
-import Control.Monad.Except (
-    ExceptT,
-    MonadError,
-    runExceptT,
-    throwError,
- )
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.Identity (Identity, runIdentity)
-import Control.Monad.State (
-    MonadState,
-    StateT,
-    evalStateT,
-    get,
-    gets,
-    put,
-    state,
- )
-
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
+import qualified Data.Map as Map
 
 -- all scoping is accomplished through a naming pass, which associates a (globally) unique identifier with each name
 
@@ -31,11 +12,7 @@ import qualified Data.Map.Strict as Map
 data SymbolizeException
     = Undefined Name
     | Redefined Name
-    deriving (Eq)
-
-instance Show SymbolizeException where
-    show (Undefined n) = "Undefined name: " ++ show n
-    show (Redefined n) = "Redefined name: " ++ show n
+    deriving (Eq, Show)
 
 class MonadError SymbolizeException m => ThrowsSymbolizeException m where
     throwUndefined :: Name -> m a
@@ -103,9 +80,9 @@ renameBlock Block{..} = withScope $ Block blockX <$> mapM renameStmt blockBody <
 newtype IncrementalSymbolizeM m a = IncrementalSymbolizeM
     { runIncrementalSymbolizeM :: 
         ExceptT SymbolizeException 
-          (StateT (Map String Int, [Int]) m) a
+          (StateT (Map Name Int, [Int]) m) a
     }
-    deriving newtype (Functor, Applicative, Monad, MonadState (Map String Int, [Int]), MonadIO, MonadError SymbolizeException)
+    deriving newtype (Functor, Applicative, Monad, MonadState (Map Name Int, [Int]), MonadIO, MonadError SymbolizeException)
     deriving anyclass (ThrowsSymbolizeException, MonadScoping)
 
 instance Monad m => MonadSymbolize (IncrementalSymbolizeM m) Int where
