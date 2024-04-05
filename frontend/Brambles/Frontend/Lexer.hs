@@ -26,67 +26,67 @@ keyword :: Text -> Parser Text
 keyword kw = lexeme $ C.string kw <* notFollowedBy (C.alphaNumChar <|> C.char '_')
 
 parens :: Parser a -> Parser a
-parens    = between (symbol "(") (symbol ")")
+parens = between (symbol "(") (symbol ")")
 
 braces :: Parser a -> Parser a
-braces    = between (symbol "{") (symbol "}")
+braces = between (symbol "{") (symbol "}")
 
 semicolon :: Parser Text
 semicolon = symbol ";"
 
 comma :: Parser Text
-comma     = symbol ","
+comma = symbol ","
 
 colon :: Parser Text
-colon     = symbol ":"
+colon = symbol ":"
 
 returnArrow :: Parser Text
 returnArrow = symbol "->"
 
 assignment :: Parser Text
-assignment  = symbol "="
+assignment = symbol "="
 
 equality :: Parser Text
-equality    = symbol "=="
+equality = symbol "=="
 
 integerType :: Parser Text
 integerType = keyword "int"
 
 floatType :: Parser Text
-floatType   = keyword "float"
+floatType = keyword "float"
 
 boolType :: Parser Text
-boolType    = keyword "bool"
+boolType = keyword "bool"
 
 fn :: Parser Text
-fn          = keyword "fn"
+fn = keyword "fn"
 
 decl :: Parser Text
-decl        = keyword "let"
+decl = keyword "let"
 
 while :: Parser Text
-while       = keyword "while"
+while = keyword "while"
 
 ret :: Parser Text
-ret         = keyword "return"
+ret = keyword "return"
 
 ifLex :: Parser Text
-ifLex       = keyword "if"
+ifLex = keyword "if"
 
 thenLex :: Parser Text
-thenLex     = keyword "then"
+thenLex = keyword "then"
 
 elseLex :: Parser Text
-elseLex     = keyword "else"
+elseLex = keyword "else"
 
 bool :: Parser Bool
-bool    = keyword "true" $> True <|> keyword "false" $> False
+bool = keyword "true" $> True <|> keyword "false" $> False
 
 natural :: Parser Integer
 natural = lexeme L.decimal
 
 float :: Parser Double
-float   = lexeme L.float
+float = lexeme L.float
 
 identifier :: Parser Text
 identifier = do

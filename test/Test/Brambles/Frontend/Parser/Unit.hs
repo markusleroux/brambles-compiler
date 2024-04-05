@@ -151,9 +151,13 @@ exprTests =
             $ testSExprParser "{ x = 3; }" 
               @?= EBlock (Block () [SExpr () $ EAssign () (V "x") (EIntLit () 3)] Nothing)
 
-        {- Currently failing:
-         -   - 3 = 4 (succeeds)
-         -}
+        , testCase "function-like variable" 
+            $ testSExprParser "fnp" 
+              @?= EVar () (V "fnp")
+
+        , testCase "if-like variable" 
+            $ testSExprParser "ifp" 
+              @?= EVar () (V "ifp")
         ]
   where
     testSExprParser = testParser exprP undecExpr
@@ -233,6 +237,18 @@ programTests =
                         , funcBody = Block SourceLoc [SExpr SourceLoc $ EAssign SourceLoc (V "z") (EIntLit SourceLoc 5)] Nothing
                         }
                     ]
+
+        , testCase "let-like variable"
+            $ testProgramParser "letp;"
+                @?= Globals SourceLoc [ SExpr SourceLoc $ EVar SourceLoc (V "letp") ]
+
+        , testCase "while-like variable"
+            $ testProgramParser "whilep;"
+                @?= Globals SourceLoc [ SExpr SourceLoc $ EVar SourceLoc (V "whilep") ]
+
+        , testCase "return-like variable"
+            $ testProgramParser "returnp;"
+                @?= Globals SourceLoc [ SExpr SourceLoc $ EVar SourceLoc (V "returnp") ]
         ]
   where
     testProgramParser = testParser programP identity
