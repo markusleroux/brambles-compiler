@@ -1,27 +1,26 @@
 module Test.Brambles.Util where
 
+import Protolude
 import Brambles.Frontend.AST
 
-import Data.Void
-
-type instance XEIntLit 'Plain   = ()
+type instance XEIntLit   'Plain = ()
 type instance XEFloatLit 'Plain = ()
-type instance XEBoolLit 'Plain  = ()
-type instance XEVar 'Plain      = ()
-type instance XEUnOp 'Plain     = ()
-type instance XEBinOp 'Plain    = ()
-type instance XECall 'Plain     = ()
-type instance XEAssign 'Plain   = ()
-type instance XEIf 'Plain       = ()
-type instance XEFunc 'Plain     = ()
+type instance XEBoolLit  'Plain = ()
+type instance XEVar      'Plain = ()
+type instance XEUnOp     'Plain = ()
+type instance XEBinOp    'Plain = ()
+type instance XECall     'Plain = ()
+type instance XEAssign   'Plain = ()
+type instance XEIf       'Plain = ()
+type instance XEFunc     'Plain = ()
 
-type instance XSExpr 'Plain     = ()
-type instance XSDecl 'Plain     = ()
-type instance XSWhile 'Plain    = ()
-type instance XSReturn 'Plain   = ()
+type instance XSExpr     'Plain = ()
+type instance XSDecl     'Plain = ()
+type instance XSWhile    'Plain = ()
+type instance XSReturn   'Plain = ()
 
-type instance XBlock 'Plain    = ()
-type instance XProg 'Plain     = ()
+type instance XBlock     'Plain = ()
+type instance XProg      'Plain = ()
 
 
 undecBlock :: Block n p -> Block n 'Plain

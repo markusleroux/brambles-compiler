@@ -1,13 +1,15 @@
 module Main where
 
+import Protolude hiding (TypeError)
+import qualified Prelude (Show(..))
+
 import Brambles.REPL.CLI
 import qualified Brambles.Frontend.AST as AST
 import Brambles.Frontend.Parser (exprP)
 import Brambles.Frontend.Typecheck (runTypechecking, inferExpr, TypeError)
 import qualified Brambles.Backend.Codegen as Codegen
 
-import Data.Void
-import Control.Monad.Except
+import Control.Monad.Except (liftEither)
 import System.Console.Haskeline (defaultSettings, getInputLine, runInputT)
 import Text.Megaparsec (parse, errorBundlePretty, ParseErrorBundle)
 
@@ -24,9 +26,9 @@ repl options =
      in 
       runInputT defaultSettings promptAndRun
      where 
-      prompt   = getInputLine "brambles> "
+      prompt   = toS <<$>> getInputLine "brambles> "
       printers = fromOptions options
-      quit     = putStrLn "quit"
+      quit     = putText "quit"
       run      = runAndPrintErrors printers
 
 data Printers = Printers
@@ -47,31 +49,31 @@ fromOptions REPLOptions{..} =
 
 
 data REPLError
-  = ParseError (ParseErrorBundle String Void)
+  = ParseError (ParseErrorBundle Text Void)
   | TypecheckError TypeError
   | CodegenError Codegen.CodegenError
 
 instance Show REPLError where
-  show (ParseError e) = errorBundlePretty e
+  show (ParseError e)     = errorBundlePretty e
   show (TypecheckError e) = show e
-  show (CodegenError e) = show e
+  show (CodegenError e)   = show e
 
 
-runAndPrintErrors :: Printers -> String -> IO ()
+runAndPrintErrors :: Printers -> Text -> IO ()
 runAndPrintErrors p input = 
   let
-    run :: Printers -> String -> ExceptT REPLError IO ()
+    run :: Printers -> Text -> ExceptT REPLError IO ()
     run Printers{..} line = do
       parsedAST <- getParsed line
 
-      lift $ putStrLn "\nAST (parsed)"
-      lift $ putStrLn "---------------------------"
+      lift $ putText "\nAST (parsed)"
+      lift $ putText "---------------------------"
       runPrinter astPrinter parsedAST
 
       typecheckedAST <- getTyped parsedAST
 
-      lift $ putStrLn "\nAST (typed)"
-      lift $ putStrLn "---------------------------"
+      lift $ putText "\nAST (typed)"
+      lift $ putText "---------------------------"
       runPrinter typedAstPrinter typecheckedAST
 
       compiledModule <- getCompiled typecheckedAST

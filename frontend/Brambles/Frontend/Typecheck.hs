@@ -1,22 +1,12 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Brambles.Frontend.Typecheck where
 
+import Protolude hiding (Type, TypeError)
+
 import Brambles.Frontend.AST
 import Brambles.Frontend.Parser (SourceLoc)
 
-import Control.Monad (unless, zipWithM_, (>=>))
-import Control.Monad.Identity (Identity, runIdentity)
-import Control.Monad.Except (MonadError, ExceptT, runExceptT, throwError)
-import Control.Monad.State (
-    MonadState,
-    StateT,
-    evalStateT,
-    modify,
-    gets,
- )
-
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
+import qualified Data.Map as Map
 
 data TypeError
     = TypeError

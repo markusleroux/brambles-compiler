@@ -1,5 +1,7 @@
 module Brambles.REPL.CLI where
 
+import Protolude
+
 import Options.Applicative hiding (ParseError)
 
 data REPLOptions = REPLOptions

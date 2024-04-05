@@ -1,24 +1,37 @@
 module Test.Brambles.Frontend.Parser.Gen where
 
-import Prelude hiding (floatRange)
+import Protolude hiding (floatRange)
 
 import qualified Brambles.Frontend.AST as AST
 import Brambles.Frontend.Lexer (identifier)
 import Brambles.Frontend.Parser (SourceLoc(..))
 
-import Data.Either (isRight)
 import Hedgehog (Gen)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Text.Megaparsec (parse)
 
-paramRange    = Range.linear 0 5
-idRange       = Range.linear 1 10
-intRange      = Range.exponential 0 1024
-floatRange    = Range.exponentialFloat 0.0 1024.0
-blockLen      = Range.linear 0 10
+paramRange :: Range.Range Int
+paramRange = Range.linear 0 5
+
+idRange :: Range.Range Int
+idRange = Range.linear 1 10
+
+intRange :: Range.Range Integer
+intRange = Range.exponential 0 1024
+
+floatRange :: Range.Range Double
+floatRange = Range.exponentialFloat 0.0 1024.0
+
+blockLen :: Range.Range Int
+blockLen = Range.linear 0 10
+
+progStmtRange :: Range.Range Int
 progStmtRange = Range.linear 0 10
+
+progFuncRange :: Range.Range Int
 progFuncRange = Range.linear 0 10
+
 
 genUnOp :: Gen AST.UnOp
 genUnOp = Gen.element [AST.Neg, AST.Pos]
@@ -38,7 +51,7 @@ genType =
 genVar :: Gen (AST.Var AST.Name)
 genVar = AST.V <$> genIdentifier
   where
-    genIdentifier = Gen.filter isValidIdentifier $ Gen.string idRange validChar
+    genIdentifier = Gen.filter isValidIdentifier $ Gen.text idRange validChar
     validChar = Gen.choice [Gen.alpha, Gen.constant '_']
     isValidIdentifier = isRight . parse identifier ""
 

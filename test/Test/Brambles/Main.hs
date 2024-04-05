@@ -1,5 +1,7 @@
 module Main where
 
+import Protolude
+
 import Test.Brambles.Frontend.AST.PrettyUnit
 import Test.Brambles.Frontend.Parser.Prop
 import Test.Brambles.Frontend.Parser.Unit

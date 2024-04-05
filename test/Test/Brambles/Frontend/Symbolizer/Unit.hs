@@ -1,13 +1,14 @@
 module Test.Brambles.Frontend.Symbolizer.Unit where
 
+import Protolude
+import Protolude.Error (error)
+
 import Brambles.Frontend.AST
 import Brambles.Frontend.Symbolize
-import Brambles.Frontend.Parser (SourceLoc(..))
 
-import Test.Brambles.Util
+import Test.Brambles.Util ()
 
 import Data.Functor.Constant
-import Data.Foldable
 import Data.Generics.Multiplate
 import Test.Tasty
 import Test.Tasty.HUnit

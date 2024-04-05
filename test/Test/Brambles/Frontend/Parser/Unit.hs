@@ -1,5 +1,8 @@
 module Test.Brambles.Frontend.Parser.Unit where
 
+import Protolude
+import Protolude.Error (error)
+
 import Brambles.Frontend.AST
 import Brambles.Frontend.Lexer (Parser)
 import Brambles.Frontend.Parser
@@ -20,9 +23,9 @@ parsingTests =
         , programTests
         ]
 
-testParser :: Parser a -> (a -> b) -> String -> b
+testParser :: Parser a -> (a -> b) -> Text -> b
 testParser parser stripAnn line = case parse (stripAnn <$> parser) "" line of
-  Left err -> error $ errorBundlePretty err
+  Left err -> error $ toS $ errorBundlePretty err
   Right r -> r
 
 
@@ -67,7 +70,7 @@ typeTests =
                 @?= TCallable [TInt] (TCallable [TInt] TBool)
         ]
   where
-    testTypeParser = testParser typeP id
+    testTypeParser = testParser typeP identity
 
 blockTests :: TestTree
 blockTests =
@@ -78,7 +81,7 @@ blockTests =
                 @?= Block SourceLoc [] Nothing
         ]
   where
-    testBlockP = testParser blockP id
+    testBlockP = testParser blockP identity
 
 exprTests :: TestTree
 exprTests =
@@ -209,7 +212,7 @@ fnTests =
                     }
         ]
   where
-    testFnParser = testParser exprP id
+    testFnParser = testParser exprP identity
 
 programTests :: TestTree
 programTests =
@@ -232,4 +235,4 @@ programTests =
                     ]
         ]
   where
-    testProgramParser = testParser programP id
+    testProgramParser = testParser programP identity
