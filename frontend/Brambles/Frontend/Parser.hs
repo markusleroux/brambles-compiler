@@ -6,7 +6,7 @@ import Brambles.Frontend.AST
 import Brambles.Frontend.Lexer (Parser)
 import qualified Brambles.Frontend.Lexer as L
 
-import Text.Megaparsec (getOffset, setOffset, parseError, observing, (<?>), sepBy, try, eof)
+import Text.Megaparsec (parseError, observing, (<?>), sepBy, try, eof)
 import Control.Monad.Combinators.Expr
 
 data SourceLoc = SourceLoc
@@ -33,18 +33,12 @@ type instance XProg      'Parsed = SourceLoc
 
 
 parseGuardMb :: Parser a -> Parser b -> Parser (Maybe b)
-parseGuardMb kw p = do
-  o <- getOffset
-  observing kw >>= \case
-    Left _ -> setOffset o >> pure Nothing
-    Right _ -> pure <$> p
+parseGuardMb kw p = observing (try kw) >>= \case
+  Left _ -> pure Nothing
+  Right _ -> pure <$> p
 
-parseGuard :: Parser a -> Parser b -> Parser b
-parseGuard kw p = do
-  o <- getOffset
-  observing kw >>= \case
-    Left err -> setOffset o >> parseError err
-    Right _ -> p
+parseGuard :: (Show a, Show b) => Parser a -> Parser b -> Parser b
+parseGuard kw p = observing (try kw) >>= either parseError (const p)
 
 typeP :: Parser Type
 typeP = integerP <|> floatP <|> boolP <|> callableP <?> "type"
@@ -119,7 +113,7 @@ statementP =
       var   <- varP
       type_ <- L.colon *> typeP
       SDecl (SourceLoc, type_) var <$> (L.assignment *> exprP)
-    returnP = parseGuard L.ret $ SReturn SourceLoc <$> exprP
+    returnP = parseGuard L.ret ( SReturn SourceLoc <$> exprP )
 
 
 bracedStmtsP :: Parser [Stmt Name 'Parsed]
