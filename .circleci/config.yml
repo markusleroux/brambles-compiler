@@ -9,7 +9,7 @@ jobs:
       - run: git submodule update --init --recursive
       - restore_cache:
           name: Restore Cached Artifacts
-          key: haskell-artifacts-{{ checksum "compiler.cabal" }}
+          key: haskell-artifacts-{{ checksum "brambles-compiler.cabal" }}
       - run:
           name: Update dependencies
           command: cabal update && cabal install --lib
@@ -21,7 +21,7 @@ jobs:
           command: cabal build --enable-tests
       - save_cache:
           name: Cache Artifacts
-          key: haskell-artifacts-{{ checksum "compiler.cabal" }}
+          key: haskell-artifacts-{{ checksum "brambles-compiler.cabal" }}
           paths:
             - "/root/.cabal"
             - "dist-newstyle"
