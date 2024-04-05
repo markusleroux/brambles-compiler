@@ -6,9 +6,10 @@ import Brambles.Frontend.Parser (exprP)
 import Brambles.Frontend.Typecheck (runTypechecking, inferExpr, TypeError)
 import qualified Brambles.Backend.Codegen as Codegen
 
+import Data.Void
 import Control.Monad.Except
 import System.Console.Haskeline (defaultSettings, getInputLine, runInputT)
-import Text.Parsec (parse, ParseError)
+import Text.Megaparsec (parse, errorBundlePretty, ParseErrorBundle)
 
 
 main :: IO () -- REPL
@@ -46,10 +47,15 @@ fromOptions REPLOptions{..} =
 
 
 data REPLError
-  = ParseError ParseError
+  = ParseError (ParseErrorBundle String Void)
   | TypecheckError TypeError
   | CodegenError Codegen.CodegenError
-  deriving (Show)
+
+instance Show REPLError where
+  show (ParseError e) = errorBundlePretty e
+  show (TypecheckError e) = show e
+  show (CodegenError e) = show e
+
 
 runAndPrintErrors :: Printers -> String -> IO ()
 runAndPrintErrors p input = 

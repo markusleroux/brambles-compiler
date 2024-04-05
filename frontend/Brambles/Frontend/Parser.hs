@@ -1,147 +1,129 @@
 module Brambles.Frontend.Parser where
 
 import Brambles.Frontend.AST
-import Brambles.Frontend.Lexer (
-    assignment,
-    bool,
-    boolType,
-    braces,
-    colon,
-    commas,
-    decl,
-    elseLex,
-    float,
-    floatType,
-    fn,
-    identifier,
-    ifLex,
-    thenLex,
-    integerType,
-    lexer,
-    natural,
-    parens,
-    ret,
-    returnArrow,
-    semicolon,
-    spaceConsumer,
-    while,
- )
+import Brambles.Frontend.Lexer (Parser)
+import qualified Brambles.Frontend.Lexer as L
 
-import Text.Parsec.String (Parser)
-import Text.Parsec (
-    eof,
-    many,
-    optionMaybe,
-    try,
-    (<?>),
-    (<|>),
- )
-import qualified Text.Parsec.Expr as Expr
-import qualified Text.Parsec.Token as Tok
+import Text.Megaparsec
+import Control.Monad.Combinators.Expr
 
 data SourceLoc = SourceLoc
   deriving (Show, Eq)
 
-type instance XEIntLit 'Parsed = SourceLoc
+type instance XEIntLit   'Parsed = SourceLoc
 type instance XEFloatLit 'Parsed = SourceLoc
-type instance XEBoolLit 'Parsed = SourceLoc
-type instance XEVar 'Parsed = SourceLoc
-type instance XEUnOp 'Parsed = SourceLoc
-type instance XEBinOp 'Parsed = SourceLoc
-type instance XECall 'Parsed = SourceLoc
-type instance XEAssign 'Parsed = SourceLoc
-type instance XEIf 'Parsed = SourceLoc
-type instance XEFunc 'Parsed = (SourceLoc, Type)
+type instance XEBoolLit  'Parsed = SourceLoc
+type instance XEVar      'Parsed = SourceLoc
+type instance XEUnOp     'Parsed = SourceLoc
+type instance XEBinOp    'Parsed = SourceLoc
+type instance XECall     'Parsed = SourceLoc
+type instance XEAssign   'Parsed = SourceLoc
+type instance XEIf       'Parsed = SourceLoc
+type instance XEFunc     'Parsed = (SourceLoc, Type)
 
-type instance XSExpr 'Parsed = SourceLoc
-type instance XSDecl 'Parsed = (SourceLoc, Type)
-type instance XSWhile 'Parsed = SourceLoc
-type instance XSReturn 'Parsed = SourceLoc
+type instance XSExpr     'Parsed = SourceLoc
+type instance XSDecl     'Parsed = (SourceLoc, Type)
+type instance XSWhile    'Parsed = SourceLoc
+type instance XSReturn   'Parsed = SourceLoc
 
-type instance XBlock 'Parsed = SourceLoc
-type instance XProg 'Parsed = SourceLoc
+type instance XBlock     'Parsed = SourceLoc
+type instance XProg      'Parsed = SourceLoc
 
+
+parseGuardMb :: Parser a -> Parser b -> Parser (Maybe b)
+parseGuardMb kw p = do
+  o <- getOffset
+  observing kw >>= \case
+    Left _ -> setOffset o >> pure Nothing
+    Right _ -> pure <$> p
+
+parseGuard :: Parser a -> Parser b -> Parser b
+parseGuard kw p = do
+  o <- getOffset
+  observing kw >>= \case
+    Left err -> setOffset o >> parseError err
+    Right _ -> p
 
 typeP :: Parser Type
 typeP = integerP <|> floatP <|> boolP <|> callableP <?> "type"
   where
-    integerP  = TInt      <$  integerType
-    floatP    = TFloat    <$  floatType
-    boolP     = TBool     <$  boolType
-    callableP = TCallable <$> parens (commas typeP) <*> (returnArrow *> typeP)
+    integerP  = TInt      <$  L.integerType <?> "int type"
+    floatP    = TFloat    <$  L.floatType <?> "float type"
+    boolP     = TBool     <$  L.boolType <?> "bool type"
+    callableP = TCallable <$> L.parens (typeP `sepBy` L.comma) <*> (L.returnArrow *> typeP) <?> "callable type"
 
 varP :: Parser (Var Name)
-varP = V <$> identifier
+varP = V <$> L.identifier <?> "variable"
 
 blockP :: Parser (Block Name 'Parsed)
-blockP = braces $ Block  SourceLoc <$> many (try statementP) <*> optionMaybe exprP
+blockP = L.braces $ Block  SourceLoc <$> many (try statementP) <*> optional exprP
 
 exprP :: Parser (Expr Name 'Parsed)
 exprP = 
-  let
-    factorP 
-        = try floatLitP
-      <|> try intLitP
-      <|> try boolLitP
-      <|> try callP
-      <|> try assignP
-      <|> try evarP
+  let  -- TODO: use less backtracking
+    factorP =
+          try floatLitP
+      <|> intLitP
+      <|> boolLitP
       <|> eblockP
       <|> functionP
       <|> ifP
-      <|> parens exprP
+      <|> try callP
+      <|> try assignP
+      <|> try evarP
+      <|> L.parens exprP
   in
-    Expr.buildExpressionParser table factorP <?> "expression"
+    makeExprParser factorP table <?> "expression"
   where
-    floatLitP = EFloatLit SourceLoc <$> float
-    intLitP   = EIntLit   SourceLoc <$> natural
-    boolLitP  = EBoolLit  SourceLoc <$> bool
+    floatLitP = EFloatLit SourceLoc <$> L.float   <?> "float"
+    intLitP   = EIntLit   SourceLoc <$> L.natural <?> "int"
+    boolLitP  = EBoolLit  SourceLoc <$> L.bool    <?> "boolean"
 
-    callP   = ECall   SourceLoc <$> (evarP <|> parens exprP) <*> parens (commas exprP)
-    assignP = EAssign SourceLoc <$> (varP <* assignment) <*> exprP
-    evarP   = EVar    SourceLoc <$> varP
-    eblockP = EBlock            <$> blockP
-    ifP     = EIf     SourceLoc <$> (ifLex *> exprP) <*> (thenLex *> blockP) <*> optionMaybe (elseLex *> blockP)
+    callP   = ECall   SourceLoc <$> evarP <*> L.parens (exprP `sepBy` L.comma) <?> "call"
+    assignP = EAssign SourceLoc <$> (varP <* L.assignment) <*> exprP <?> "assignment"
+    evarP   = EVar    SourceLoc <$> varP   <?> "variable"
+    eblockP = EBlock            <$> blockP <?> "block"
+    ifP     = parseGuard L.ifLex (EIf SourceLoc <$> exprP <*> (L.thenLex *> blockP) <*> parseGuardMb L.elseLex blockP <?> "block")
 
     table =
-        [ [unaryOp "-" Neg, unaryOp "+" Pos]
-        , [binaryOp "*" Mult Expr.AssocLeft, binaryOp "/" Div Expr.AssocLeft]
-        , [binaryOp "+" Add Expr.AssocLeft, binaryOp "-" Sub Expr.AssocLeft]
-        , [binaryOp "==" Eq Expr.AssocLeft]
+        [ [prefix "-" Neg,  prefix "+" Pos]
+        , [binary "*" Mult, binary "/" Div]
+        , [binary "+" Add,  binary "-" Sub]
+        , [binary "==" Eq]
         ]
       where
-        unaryOp  name op = Expr.Prefix $ EUnOp SourceLoc op <$ Tok.reservedOp lexer name
-        binaryOp name op = Expr.Infix $ EBinOp SourceLoc op <$ Tok.reservedOp lexer name
+        prefix name f = Prefix (EUnOp SourceLoc f <$ L.symbol name)
+        binary name f = InfixL (EBinOp SourceLoc f <$ L.symbol name)
 
     -- fn name(t0 arg0, ...) -> returnType { ... }
-    functionP = do
-        name <- fn *> varP
-        (vars, params) <- unzip <$> parens (commas varAndTypeP)
-        returns <- returnArrow *> typeP
+    functionP = parseGuard L.fn $ do
+        name <- varP
+        (vars, params) <- unzip <$> L.parens (varAndTypeP `sepBy` L.comma)
+        returns <- L.returnArrow *> typeP
         EFunc (SourceLoc, TCallable params returns) name vars <$> blockP
       where
-        varAndTypeP = (,) <$> (varP <* colon) <*> typeP
+        varAndTypeP = (,) <$> (varP <* L.colon) <*> typeP
 
 statementP :: Parser (Stmt Name 'Parsed)
 statementP = 
   let
-    stmtP = declP <|> sExprP <|> whileP <|> returnP <?> "statement"
+    stmtP = declP <|> whileP <|> returnP <|> sExprP <?> "statement"
   in
-    stmtP <* semicolon
+    stmtP <* L.semicolon
   where
     sExprP = SExpr SourceLoc <$> exprP
-    whileP = SWhile SourceLoc <$> (while *> exprP) <*> bracedStmtsP
-    declP = do
-      var <- decl *> varP
-      type_ <- colon *> typeP
-      SDecl (SourceLoc, type_) var <$> (assignment *> exprP)
-    returnP = SReturn SourceLoc <$> (ret *> exprP)
+    whileP = parseGuard L.while $ SWhile SourceLoc <$> exprP <*> bracedStmtsP
+    declP = parseGuard L.decl $ do
+      var   <- varP
+      type_ <- L.colon *> typeP
+      SDecl (SourceLoc, type_) var <$> (L.assignment *> exprP)
+    returnP = parseGuard L.ret $ SReturn SourceLoc <$> exprP
 
 
 bracedStmtsP :: Parser [Stmt Name 'Parsed]
-bracedStmtsP = braces $ many statementP
+bracedStmtsP = L.braces $ many statementP
 
 programP :: Parser (Prog Name 'Parsed)
-programP = let stmtsP = spaceConsumer *> many statementP <* eof
+programP = let stmtsP = L.spaceConsumer *> many statementP <* eof
   in Globals SourceLoc <$> stmtsP
 
