@@ -42,8 +42,13 @@ class (ThrowsSymbolizeException m, MonadScoping m) => MonadSymbolize m sym | m -
 
 
 {- Renaming Functions -}
-renameProg :: MonadSymbolize m sym => Prog Name p -> m (Prog sym p)
-renameProg (Globals x gs) = Globals x <$> mapM renameStmt gs
+renameModule :: MonadSymbolize m sym => Module Name p -> m (Module sym p)
+renameModule Module{..} = do
+  -- load top-level function names first
+  funcNames <- mapM (mapM createSym . funcName) moduleFuncs
+  Module moduleX 
+    <$> mapM renameStmt moduleGlobals 
+    <*> zipWithM renameTopLevelFunc funcNames moduleFuncs
 
 renameStmt :: MonadSymbolize m sym => Stmt Name p -> m (Stmt sym p)
 renameStmt SExpr{..}   = SExpr exprX     <$> renameExpr exprExpr
@@ -62,16 +67,29 @@ renameExpr ECall{..}     = ECall callX       <$> renameExpr callName <*> mapM re
 renameExpr EAssign{..}   = EAssign assignX   <$> mapM getSym assignVar <*> renameExpr assignExpr
 renameExpr EIf{..}       = EIf ifX           <$> renameExpr ifPred <*> renameBlock ifThen <*> mapM renameBlock ifElseMb
 renameExpr EBlock{..}    = EBlock            <$> renameBlock unBlock
-renameExpr EFunc{..} = do
-  u <- mapM createSym funcName -- function symbol will be available inside function (recursion)
+renameExpr EFunc{..}     = EFunc             <$> renameFunc unFunc
+
+renameFunc :: MonadSymbolize m sym => Func Name p -> m (Func sym p)
+renameFunc f@Func{..} = do
+  n <- mapM createSym funcName
+  renameTopLevelFunc n f
+
+renameTopLevelFunc 
+  :: MonadSymbolize m sym 
+  => Var sym
+  -> Func Name p 
+  -> m (Func sym p)
+renameTopLevelFunc u Func{..} = do
   (args, body) <- withScope $ do
       args <- mapM (mapM createSym) funcParams
       body <- renameBlock funcBody
       return (args, body)
-  pure $ EFunc funcX u args body
+  pure $ Func funcX u args body
 
 renameBlock :: MonadSymbolize m sym => Block Name p -> m (Block sym p)
-renameBlock Block{..} = withScope $ Block blockX <$> mapM renameStmt blockBody <*> mapM renameExpr blockResult
+renameBlock Block{..} = withScope $ Block blockX 
+  <$> mapM renameStmt blockBody 
+  <*> mapM renameExpr blockResult
 
 {- 
  - Renaming implementation using (Data.Map, [Int]) in StateT 
