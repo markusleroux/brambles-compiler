@@ -13,6 +13,7 @@ import Data.Generics.Multiplate
 import Test.Tasty
 import Test.Tasty.HUnit
 
+
 nestedBlock :: [Stmt Name 'Plain]
 nestedBlock = 
     [ SDecl () (V "x") (EIntLit () 3)
@@ -26,6 +27,7 @@ nestedBlock =
     , SExpr () (EVar () $ V "x")
     ]
 
+symbolizerTests :: TestTree
 symbolizerTests =
     testGroup
         "Symbolizer"
@@ -33,6 +35,7 @@ symbolizerTests =
         , funcTests
         ]
 
+blockTests :: TestTree
 blockTests =
     testGroup
         "Block"
@@ -54,12 +57,13 @@ blockTests =
   where
     testBlock = testRenameExpr
 
+funcTests :: TestTree
 funcTests =
     testGroup
         "Function"
         [ testCase "Recursion" $
             testFunc
-                EFunc
+                Func
                     { funcX = ()
                     , funcName = V "func"
                     , funcParams = []
@@ -68,7 +72,7 @@ funcTests =
                 [0] -- recursion!
         , testCase "param binding" $
             testFunc
-                EFunc
+                Func
                     { funcX = ()
                     , funcName = V "func"
                     , funcParams = [V "a", V "b"]
@@ -80,7 +84,7 @@ funcTests =
                 [0, 1, 2, 3, 3, 2]
         , testCase "nested block" $
             testFunc
-                EFunc
+                Func
                     { funcX = ()
                     , funcName = V "func"
                     , funcParams = [V "a", V "b"]
@@ -89,15 +93,15 @@ funcTests =
                 [0, 1, 2, 3, 3, 4, 4, 3]
         ]
   where
-    testFunc = testRenameExpr
+    testFunc = testRenameFunc
 
 getVariablesPlate :: Plate Int p (Constant [Int])
 getVariablesPlate = preorderFold (purePlate { pVar = \v -> Constant [n | V n <- [v]] })
 
-testRenameStmt :: Stmt Name 'Plain -> [Int] -> Assertion
-testRenameStmt v expected = case runIncrementalSymbolize $ renameStmt v of
+testRenameFunc :: Func Name 'Plain -> [Int] -> Assertion
+testRenameFunc v expected = case runIncrementalSymbolize $ renameFunc v of
     Left err -> error $ show err
-    Right renamed -> foldFor pStmt getVariablesPlate renamed @?= expected
+    Right renamed -> foldFor pFunc getVariablesPlate renamed @?= expected
 
 testRenameExpr :: Expr Name 'Plain -> [Int] -> Assertion
 testRenameExpr v expected = case runIncrementalSymbolize $ renameExpr v of
