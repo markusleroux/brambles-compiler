@@ -1,0 +1,20 @@
+; ModuleID = 'test'
+source_filename = "<string>"
+
+define i64 @"0"() {
+entry_0:
+  br label %while.start_0
+
+while.start_0:                                    ; preds = %while.body_0, %entry_0
+  br i1 true, label %while.body_0, label %while.end_0
+
+while.body_0:                                     ; preds = %while.start_0
+  br label %while.start_0
+
+while.end_0:                                      ; preds = %while.start_0
+  ret i64 0
+}
+
+define i64 @main() {
+  ret i64 0
+}

@@ -1,0 +1,17 @@
+; ModuleID = 'test'
+source_filename = "<string>"
+
+define i64 @"0"() {
+entry_0:
+  %0 = alloca i64, align 8
+  store i64 3, ptr %0, align 4
+  %1 = load i64, ptr %0, align 4
+  %2 = add i64 %1, 4
+  %3 = alloca i64, align 8
+  store i64 %2, ptr %3, align 4
+  ret i64 0
+}
+
+define i64 @main() {
+  ret i64 0
+}

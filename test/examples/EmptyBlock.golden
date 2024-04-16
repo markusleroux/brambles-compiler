@@ -1,0 +1,11 @@
+; ModuleID = 'test'
+source_filename = "<string>"
+
+define i64 @"0"() {
+entry_0:
+  ret i64 0
+}
+
+define i64 @main() {
+  ret i64 0
+}

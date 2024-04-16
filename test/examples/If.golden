@@ -1,0 +1,22 @@
+; ModuleID = 'test'
+source_filename = "<string>"
+
+define i1 @"0"() {
+entry_0:
+  %0 = icmp eq i64 3, 4
+  br i1 %0, label %if.then_0, label %if.else_0
+
+if.then_0:                                        ; preds = %entry_0
+  br label %if.exit_0
+
+if.else_0:                                        ; preds = %entry_0
+  br label %if.exit_0
+
+if.exit_0:                                        ; preds = %if.else_0, %if.then_0
+  %1 = phi i1 [ false, %if.then_0 ], [ true, %if.else_0 ]
+  ret i1 %1
+}
+
+define i64 @main() {
+  ret i64 0
+}
