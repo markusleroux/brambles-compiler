@@ -1,7 +1,9 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ExistentialQuantification #-}
 module Brambles.Frontend.Typecheck where
 
-import Protolude hiding (Type, TypeError)
+import Protolude hiding (Type, TypeError, Show, show)
+import Protolude.Base (Show(..))
 
 import Brambles.Frontend.AST
 import Brambles.Frontend.Parser (SourceLoc)
@@ -9,9 +11,15 @@ import Brambles.Frontend.Parser (SourceLoc)
 import qualified Data.Map as Map
 
 data TypeError
-    = TypeError
-    deriving (Eq, Show)
+    = TypeError 
+    { typeErrorExpected :: Type 
+    , typeErrorActual   :: Type
+    }
+    | forall n. Show n => UnkownTypeError n
 
+instance Show TypeError where
+  show TypeError{..} = "TypeError: expected " ++ show typeErrorExpected ++ ", got " ++ show typeErrorActual
+  show (UnkownTypeError v) = "UnkownTypeError: type of " ++ show v ++ " is unknown"
 
 type instance XEIntLit 'Typed   = (SourceLoc, Type)
 type instance XEFloatLit 'Typed = (SourceLoc, Type)
@@ -30,7 +38,7 @@ type instance XSWhile 'Typed    = (SourceLoc, Type)
 type instance XSReturn 'Typed   = (SourceLoc, Type)
 
 type instance XBlock 'Typed    = (SourceLoc, Type)
-type instance XProg 'Typed     = SourceLoc
+type instance XModule 'Typed   = SourceLoc
 
 -- TODO: best way to make the below more generic?
 class Typed t where
@@ -50,7 +58,7 @@ instance Typed (Expr n 'Typed) where
   getType (EAssign ann _ _)  = snd ann
   getType (EBlock b)         = getType b
   getType (EIf ann _ _ _)    = snd ann
-  getType (EFunc ann _ _ _)  = snd ann
+  getType (EFunc f)          = getType f
 
 instance Typed (Stmt n 'Typed) where
   getType (SExpr ann _)     = snd ann
@@ -58,25 +66,29 @@ instance Typed (Stmt n 'Typed) where
   getType (SWhile ann _ _)  = snd ann
   getType (SReturn ann _)   = snd ann
 
+instance Typed (Func n 'Typed) where
+  getType (Func ann _ _ _)  = snd ann
+
 
 class MonadError TypeError m => ThrowsTypeException m where
-  throwTypeError :: m a
-  throwTypeError = throwError TypeError
+  throwTypeError :: Type -> Type -> m a
+  throwTypeError e = throwError . TypeError e
 
-class (ThrowsTypeException m, Monad m) => MonadTy m n | m -> n where
+  throwUnknownType :: Show n => n -> m a
+  throwUnknownType = throwError . UnkownTypeError
+
+class (ThrowsTypeException m, Monad m, Show n) => MonadTy m n | m -> n where
   setType :: n -> Type -> m ()
   lookupTypeMb :: n -> m (Maybe Type)
 
   lookupType :: n -> m Type
-  lookupType = lookupTypeMb >=> maybe throwTypeError pure
-
+  lookupType n = lookupTypeMb n >>= \case 
+    Just t -> pure t
+    Nothing -> throwUnknownType n
 
 inferBlock :: MonadTy m n => Block n 'Parsed -> m (Block n 'Typed)
 inferBlock (Block l ss eMb) = do
-  -- statements
   ss' <- mapM inferStmt ss
-
-  -- expression maybe
   case eMb of
     Just e -> do
       e' <- inferExpr e
@@ -90,23 +102,23 @@ inferExpr (EBoolLit l v)  = pure $ EBoolLit  (l, TBool)  v
 inferExpr (EUnOp l op e) = do
   e' <- inferExpr e
   let t = getType e'
-  unless (isNumeric t) throwTypeError
+  unless (isNumeric t) $ throwTypeError TInt t  -- TODO
   pure $ EUnOp (l, t) op e'
 inferExpr (EBinOp l op e1 e2) = do
   e1' <- inferExpr e1
   e2' <- inferExpr e2
-  unless (getType e1' == getType e2') throwTypeError
+  unless (getType e1' == getType e2') $ throwTypeError (getType e1') (getType e2')
   let t = getType e1'
   case op of
     Eq -> pure $ EBinOp (l, TBool) op e1' e2'
     _ -> do
-      unless (isNumeric t) throwTypeError
+      unless (isNumeric t) $ throwTypeError TInt t
       pure $ EBinOp (l, t) op e1' e2'
 inferExpr EBlock{..} = EBlock <$> inferBlock unBlock
 inferExpr EIf{..} = do
   -- predicate
   ifPred' <- inferExpr ifPred
-  unless (getType ifPred' == TBool) throwTypeError
+  unless (getType ifPred' == TBool) $ throwTypeError TBool $ getType ifPred'
 
   -- then
   ifThen' <- inferBlock ifThen
@@ -115,37 +127,27 @@ inferExpr EIf{..} = do
   case ifElseMb of
     Just ifElse -> do
       ifElse' <- inferBlock ifElse
-      unless (getType ifElse' == getType ifThen') throwTypeError
+      unless (getType ifElse' == getType ifThen') $ throwTypeError (getType ifElse') (getType ifThen')
       pure $ EIf (ifX, getType ifThen') ifPred' ifThen' (Just ifElse')
     Nothing -> pure $ EIf (ifX, TOptional $ getType ifThen') ifPred' ifThen' Nothing
 
-inferExpr (EFunc (l, ann) n ps b) = do
-  zipWithM_ setType (unVar <$> ps) (paramT ann)
-  b' <- inferBlock b
-
-  let earlyReturnT = [getType e | SReturn _ e <- blockBody b']
-      returnExprT = maybe TUnit getType $ blockResult b'
-
-  case earlyReturnT ++ [returnExprT] of
-    [] -> unless (returnT ann == TUnit) throwTypeError
-    xs -> unless (all (== returnT ann) xs) throwTypeError
-
-  setType (unVar n) ann
-  pure $ EFunc (l, ann) n ps b'
+inferExpr EFunc{..} = EFunc <$> inferFunc unFunc
 
 inferExpr EAssign{..} = do
   t <- lookupType $ unVar assignVar  -- TODO: inferVar?
   assignExpr' <- inferExpr assignExpr
-  unless (t == getType assignExpr') throwTypeError
+  unless (t == getType assignExpr') $ throwTypeError (getType assignExpr') t
   pure $ EAssign (assignX, t) assignVar assignExpr'
+
 inferExpr ECall{..} = do
   callName' <- inferExpr callName
   case getType callName' of
     TCallable{..} -> do
       callArgs' <- mapM inferExpr callArgs
-      unless (paramT == (getType <$> callArgs')) throwTypeError
-      pure $ ECall (callX, getType callName') callName' callArgs'
-    _ -> throwTypeError
+      unless (paramT == (getType <$> callArgs')) $ throwTypeError undefined undefined
+      pure $ ECall (callX, returnT) callName' callArgs'
+    _ -> throwTypeError (TCallable undefined undefined) undefined
+
 inferExpr EVar{..} = do
   t <- lookupType $ unVar varVar
   pure $ EVar (varX, t) varVar
@@ -155,20 +157,40 @@ inferStmt :: MonadTy m n => Stmt n 'Parsed -> m (Stmt n 'Typed)
 inferStmt (SExpr l e) = SExpr (l, TUnit) <$> inferExpr e
 inferStmt (SDecl (l, ann) v@(V n) e) = do
   e' <- inferExpr e
-  unless (ann == getType e') throwTypeError
+  unless (ann == getType e') $ throwTypeError ann $ getType e'
   setType n ann
   pure $ SDecl (l, TUnit) v e'
 inferStmt SWhile{..} = do
-  -- predicate
   whilePred' <- inferExpr whilePred
-  unless (getType whilePred' == TBool) throwTypeError
-
-  -- body
+  unless (getType whilePred' == TBool) $ throwTypeError TBool $ getType whilePred'
   SWhile (whileX, TUnit) whilePred' <$> mapM inferStmt whileBody
 inferStmt (SReturn l e) = SReturn (l, TUnit) <$> inferExpr e
 
-inferProg :: MonadTy m n => Prog n 'Parsed -> m (Prog n 'Typed)
-inferProg (Globals l ss) = Globals l <$> mapM inferStmt ss
+inferFunc :: MonadTy m n => Func n 'Parsed -> m (Func n 'Typed)
+inferFunc (Func (l, ann) n ps b) = do
+  zipWithM_ setType (unVar <$> ps) (paramT ann)
+  b' <- inferBlock b
+
+  let earlyReturnT = [getType e | SReturn _ e <- blockBody b']
+      returnExprT = maybe TUnit getType $ blockResult b'
+
+  case earlyReturnT ++ [returnExprT] of
+    [] -> unless (returnT ann == TUnit) $ throwTypeError TUnit $ returnT ann
+    xs -> unless (all (== returnT ann) xs) $ throwTypeError undefined undefined
+
+  setType (unVar n) ann
+  pure $ Func (l, ann) n ps b'
+
+
+inferModule :: MonadTy m n => Module n 'Parsed -> m (Module n 'Typed)
+inferModule Module{..} = do
+  -- load top-level function types first
+  unzipWithM_ setType [(n, ann) | (Func (_, ann) (V n) _ _) <- moduleFuncs]
+  Module moduleX 
+    <$> mapM inferStmt moduleGlobals 
+    <*> mapM inferFunc moduleFuncs
+  where
+    unzipWithM_ = mapM_ . uncurry
 
 
 -- TODO: this isn't really generic in a, a should be Node n 'Parsed
@@ -180,7 +202,7 @@ newtype Ord n => TypecheckingM m n a = TypecheckingM
   deriving newtype (Functor, Applicative, Monad, MonadError TypeError, MonadState (Map n Type))
   deriving anyclass (ThrowsTypeException)
 
-instance (Ord n, Monad m) => MonadTy (TypecheckingM m n) n where
+instance (Ord n, Monad m, Show n) => MonadTy (TypecheckingM m n) n where
   setType n = modify . Map.insert n
   lookupTypeMb = gets . Map.lookup
   

@@ -54,7 +54,7 @@ type family XSWhile    (p :: Pass)
 type family XSReturn   (p :: Pass)
 
 type family XBlock     (p :: Pass)
-type family XProg      (p :: Pass)
+type family XModule    (p :: Pass)
 
 type Name = Text
 
@@ -83,7 +83,7 @@ data Expr n (p :: Pass)
       }
     | EVar      
       { varX        :: !(XEVar p)
-      , varVar      :: Var n
+      , varVar      :: !(Var n)
       }
     | EUnOp 
       { unX         :: !(XEUnOp p)
@@ -106,18 +106,17 @@ data Expr n (p :: Pass)
       , assignVar   :: Var n
       , assignExpr  :: Expr n p
       }
-    | EBlock { unBlock :: Block n p }
     | EIf 
       { ifX         :: !(XEIf p)
       , ifPred      :: Expr n p
       , ifThen      :: Block n p
       , ifElseMb    :: Maybe (Block n p)
       }
-    | EFunc 
-      { funcX       :: !(XEFunc p)
-      , funcName    :: Var n
-      , funcParams  :: [Var n]
-      , funcBody    :: Block n p
+    | EBlock 
+      { unBlock :: Block n p 
+      }
+    | EFunc  
+      { unFunc  :: Func n p 
       }
 
 data Stmt n (p :: Pass)
@@ -140,7 +139,24 @@ data Stmt n (p :: Pass)
       , returnExpr :: Expr n p
       }
 
-data Prog n (p :: Pass) = Globals !(XProg p) [Stmt n p]
+data Func n (p :: Pass) 
+  = Func
+  { funcX       :: !(XEFunc p)
+  , funcName    :: Var n
+  , funcParams  :: [Var n]
+  , funcBody    :: Block n p
+  }
+
+data Module n (p :: Pass) 
+  = Module 
+  { moduleX       :: !(XModule p)
+  , moduleGlobals :: [Stmt n p]
+  , moduleFuncs   :: [Func n p]
+  }
+
+isFunc :: Stmt n p -> Bool
+isFunc (SExpr _ EFunc{}) = True
+isFunc _ = False
 
 {- Useful constraint types using constraint kinds -}
 type ForAllExprX (c :: Kind.Type -> Constraint) p = 
@@ -153,7 +169,6 @@ type ForAllExprX (c :: Kind.Type -> Constraint) p =
   , c (XECall p)
   , c (XEAssign p)
   , c (XEIf p)
-  , c (XEFunc p)
   )
 
 type ForAllStmtX (c :: Kind.Type -> Constraint) p = 
@@ -167,7 +182,8 @@ type ForAllX (c :: Kind.Type -> Constraint) p =
   ( ForAllExprX c p
   , ForAllStmtX c p
   , c (XBlock p)
-  , c (XProg p)
+  , c (XEFunc p)
+  , c (XModule p)
   )
 
 
@@ -175,31 +191,46 @@ type ForAllX (c :: Kind.Type -> Constraint) p =
 deriving instance (Show n, ForAllX Show p) => Show (Block n p)
 deriving instance (Show n, ForAllX Show p) => Show (Expr n p)
 deriving instance (Show n, ForAllX Show p) => Show (Stmt n p)
-deriving instance (Show n, ForAllX Show p) => Show (Prog n p)
+deriving instance (Show n, ForAllX Show p) => Show (Func n p)
+deriving instance (Show n, ForAllX Show p) => Show (Module n p)
 
 deriving instance (Eq n, ForAllX Eq p) => Eq (Block n p)
 deriving instance (Eq n, ForAllX Eq p) => Eq (Expr n p)
 deriving instance (Eq n, ForAllX Eq p) => Eq (Stmt n p)
-deriving instance (Eq n, ForAllX Eq p) => Eq (Prog n p)
+deriving instance (Eq n, ForAllX Eq p) => Eq (Func n p)
+deriving instance (Eq n, ForAllX Eq p) => Eq (Module n p)
 
 
 {- Multiplate -}
 data Plate n (p :: Pass) f = Plate
-    { pProg  :: Prog n p  -> f (Prog n p)
-    , pStmt  :: Stmt n p  -> f (Stmt n p)
-    , pExpr  :: Expr n p  -> f (Expr n p)
-    , pBlock :: Block n p -> f (Block n p)
-    , pVar   :: Var n     -> f (Var n)
-    , pBinOp :: BinOp     -> f BinOp
-    , pUnOp  :: UnOp      -> f UnOp
+    { pModule :: Module n p -> f (Module n p)
+    , pFunc   :: Func n p   -> f (Func n p)
+    , pStmt   :: Stmt n p   -> f (Stmt n p)
+    , pExpr   :: Expr n p   -> f (Expr n p)
+    , pBlock  :: Block n p  -> f (Block n p)
+    , pVar    :: Var n      -> f (Var n)
+    , pBinOp  :: BinOp      -> f BinOp
+    , pUnOp   :: UnOp       -> f UnOp
     }
 
 instance Multiplate (Plate n p) where
     multiplate :: forall f. Applicative f => Plate n p f -> Plate n p f
-    multiplate Plate{..} = Plate buildProg buildStmt buildExpr buildBlock buildVar buildBinOp buildUnOp
+    multiplate Plate{..} = Plate 
+        buildModule 
+        buildFunc 
+        buildStmt 
+        buildExpr 
+        buildBlock 
+        buildVar 
+        buildBinOp 
+        buildUnOp
+
       where
-        buildProg :: Prog n p -> f (Prog n p)
-        buildProg (Globals x ss) = Globals x <$> (pStmt `traverse` ss)
+        buildModule :: Module n p -> f (Module n p)
+        buildModule Module{..} = Module moduleX <$> pStmt `traverse` moduleGlobals <*> pFunc `traverse` moduleFuncs 
+
+        buildFunc :: Func n p -> f (Func n p)
+        buildFunc Func{..} = Func funcX <$> pVar funcName <*> (pVar `traverse` funcParams) <*> pBlock funcBody
 
         buildStmt :: Stmt n p -> f (Stmt n p)
         buildStmt SExpr{..}   = SExpr   exprX   <$> pExpr exprExpr
@@ -213,9 +244,9 @@ instance Multiplate (Plate n p) where
         buildExpr EVar{..}    = EVar    varX    <$> pVar varVar
         buildExpr ECall{..}   = ECall   callX   <$> pExpr callName <*> (pExpr `traverse` callArgs)
         buildExpr EAssign{..} = EAssign assignX <$> pVar assignVar <*> pExpr assignExpr
-        buildExpr EBlock{..}  = EBlock  <$> buildBlock unBlock
         buildExpr EIf{..}     = EIf     ifX     <$> pExpr ifPred <*> pBlock ifThen <*> (pBlock `traverse` ifElseMb)
-        buildExpr EFunc{..}   = EFunc   funcX   <$> pVar funcName <*> (pVar `traverse` funcParams) <*> pBlock funcBody
+        buildExpr EBlock{..}  = EBlock  <$> buildBlock unBlock
+        buildExpr EFunc{..}   = EFunc   <$> pFunc unFunc
         buildExpr v = pure v
 
         buildBlock :: Block n p -> f (Block n p)
@@ -230,4 +261,13 @@ instance Multiplate (Plate n p) where
         buildVar :: Var n -> f (Var n)
         buildVar = pure
 
-    mkPlate build = Plate (build pProg) (build pStmt) (build pExpr) (build pBlock) (build pVar) (build pBinOp) (build pUnOp)
+    mkPlate build = Plate 
+      (build pModule) 
+      (build pFunc) 
+      (build pStmt) 
+      (build pExpr) 
+      (build pBlock) 
+      (build pVar) 
+      (build pBinOp) 
+      (build pUnOp)
+

@@ -168,7 +168,7 @@ fnTests =
         "Basic fn tests"
         [ testCase "Empty" $
             testFnParser "fn function() -> int {};"
-                @?= EFunc
+                @?= Func
                     { funcX = (SourceLoc, TCallable [] TInt)
                     , funcName = V "function"
                     , funcParams = []
@@ -177,7 +177,7 @@ fnTests =
 
         , testCase "One argument" $
             testFnParser "fn function(a: int) -> int {};"
-                @?= EFunc
+                @?= Func
                     { funcX = (SourceLoc, TCallable [TInt] TInt)
                     , funcName = V "function"
                     , funcParams = [V "a"]
@@ -186,7 +186,7 @@ fnTests =
 
         , testCase "Multiple argument" $
             testFnParser "fn function(a: int, b: float) -> float {};"
-                @?= EFunc
+                @?= Func
                     { funcX = (SourceLoc, TCallable [TInt, TFloat] TFloat)
                     , funcName = V "function"
                     , funcParams = [V "a", V "b"]
@@ -195,7 +195,7 @@ fnTests =
 
         , testCase "Small body" $
             testFnParser "fn function(a: int, b: float) -> float { x = 3; };"
-                @?= EFunc
+                @?= Func
                     { funcX = (SourceLoc, TCallable [TInt, TFloat] TFloat)
                     , funcName = V "function"
                     , funcParams = [V "a", V "b"]
@@ -204,7 +204,7 @@ fnTests =
 
         , testCase "Medium body" $
             testFnParser "fn function(a: int, b: float) -> float { x; let y: float = 3 * 10.0; a = 4; };"
-                @?= EFunc
+                @?= Func
                     { funcX = (SourceLoc, TCallable [TInt, TFloat] TFloat)
                     , funcName = V "function"
                     , funcParams = [V "a", V "b"]
@@ -216,7 +216,7 @@ fnTests =
                     }
         ]
   where
-    testFnParser = testParser exprP identity
+    testFnParser = testParser functionP identity
 
 programTests :: TestTree
 programTests =
@@ -224,13 +224,13 @@ programTests =
         "Basic program tests"
         [ testCase "Empty" 
             $ testProgramParser "" 
-                @?= Globals SourceLoc []
+                @?= Module SourceLoc [] []
 
         , testCase "EAssignment and function" 
             $ testProgramParser "let x: int = 3; fn test(y: float) -> int { z = 5; };"
-                @?= Globals SourceLoc
-                    [ SDecl (SourceLoc, TInt) (V "x") (EIntLit SourceLoc 3)
-                    , SExpr SourceLoc $ EFunc
+                @?= Module SourceLoc
+                    [ SDecl (SourceLoc, TInt) (V "x") (EIntLit SourceLoc 3) ]
+                    [ Func
                         { funcX = (SourceLoc, TCallable [TFloat] TInt)
                         , funcName = V "test"
                         , funcParams = [V "y"]
@@ -240,15 +240,15 @@ programTests =
 
         , testCase "let-like variable"
             $ testProgramParser "letp;"
-                @?= Globals SourceLoc [ SExpr SourceLoc $ EVar SourceLoc (V "letp") ]
+                @?= Module SourceLoc [ SExpr SourceLoc $ EVar SourceLoc (V "letp") ] []
 
         , testCase "while-like variable"
             $ testProgramParser "whilep;"
-                @?= Globals SourceLoc [ SExpr SourceLoc $ EVar SourceLoc (V "whilep") ]
+                @?= Module SourceLoc [ SExpr SourceLoc $ EVar SourceLoc (V "whilep") ] []
 
         , testCase "return-like variable"
             $ testProgramParser "returnp;"
-                @?= Globals SourceLoc [ SExpr SourceLoc $ EVar SourceLoc (V "returnp") ]
+                @?= Module SourceLoc [ SExpr SourceLoc $ EVar SourceLoc (V "returnp") ] []
         ]
   where
     testProgramParser = testParser programP identity

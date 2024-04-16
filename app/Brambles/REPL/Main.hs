@@ -7,6 +7,7 @@ import Brambles.REPL.CLI
 import qualified Brambles.Frontend.AST as AST
 import Brambles.Frontend.Parser (exprP)
 import Brambles.Frontend.Typecheck (runTypechecking, inferExpr, TypeError)
+import qualified Brambles.Backend.ASTToLLVM as ASTToLLVM
 import qualified Brambles.Backend.Codegen as Codegen
 
 import Control.Monad.Except (liftEither)
@@ -51,12 +52,12 @@ fromOptions REPLOptions{..} =
 data REPLError
   = ParseError (ParseErrorBundle Text Void)
   | TypecheckError TypeError
-  | CodegenError Codegen.CodegenError
+  | ASTToLLVMError ASTToLLVM.ASTToLLVMError
 
 instance Show REPLError where
   show (ParseError e)     = errorBundlePretty e
   show (TypecheckError e) = show e
-  show (CodegenError e)   = show e
+  show (ASTToLLVMError e)   = show e
 
 
 runAndPrintErrors :: Printers -> Text -> IO ()
@@ -77,7 +78,7 @@ runAndPrintErrors p input =
       runPrinter typedAstPrinter typecheckedAST
 
       compiledModule <- getCompiled typecheckedAST
-      lift $ Codegen.optimize compiledModule
+      _ <- lift $ Codegen.optimize compiledModule
       pure ()
       -- runPrinter irPrinter compiledModule
       -- runPrinter compilePrinter compiledModule
@@ -88,5 +89,5 @@ runAndPrintErrors p input =
 
     getParsed   = withExceptT ParseError     . liftEither . parse exprP "<stdin>"
     getTyped    = withExceptT TypecheckError . liftEither . runTypechecking . inferExpr
-    getCompiled = withExceptT CodegenError   . liftEither . Codegen.toLLVM
+    getCompiled = withExceptT ASTToLLVMError . liftEither . ASTToLLVM.runExprtoLLVM
 

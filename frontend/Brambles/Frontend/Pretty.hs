@@ -43,8 +43,9 @@ instance Pretty Type where
     pretty TInt   = pretty ("int" :: Text)
     pretty TFloat = pretty ("float" :: Text)
     pretty TBool  = pretty ("bool" :: Text)
-    pretty TUnit  = undefined
+    pretty TUnit  = pretty ("()" :: Text)
     pretty TCallable{..} = align (tupled $ pretty <$> paramT) <+> pretty ("->" :: Text) <+> pretty returnT
+    pretty (TOptional t) = pretty ("Maybe" :: Text) <+> pretty t
 
 instance Pretty n => Pretty (Var n) where
     pretty (V v) = pretty v
@@ -72,7 +73,10 @@ instance Pretty n => Pretty (Expr n 'Parsed) where
                         <> maybe mempty prettyElse ifElseMb
       where
         prettyElse b = pretty (" else" :: Text) <+> pretty b
-    pretty EFunc{..} =
+    pretty EFunc{..} = pretty unFunc
+
+instance Pretty n => Pretty (Func n 'Parsed) where
+    pretty Func{..} =
         pretty ("fn" :: Text)
             <+> pretty funcName
                 <> align (tupled prettyParams)
@@ -107,5 +111,9 @@ prettyLikeBlock l = braces . newlineIf (null l) . vsep $ l
   where
     newlineIf = bool (enclose line line) identity
 
-instance Pretty n => Pretty (Prog n 'Parsed) where
-    pretty (Globals _ g) = vsep (pretty <$> g)
+instance Pretty n => Pretty (Module n 'Parsed) where
+    pretty Module{..} = vsep $ prettyGlobals ++ prettyFuncs
+      where
+        prettyGlobals = pretty <$> moduleGlobals
+        prettyFuncs   = (\f -> pretty f <> semi) <$> moduleFuncs
+

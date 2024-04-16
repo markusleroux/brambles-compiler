@@ -1,4 +1,4 @@
-module Test.Brambles.Frontend.AST.PrettyUnit where
+module Test.Brambles.Frontend.AST.Unit where
 
 import Protolude hiding (exp)
 import Protolude.Error (error)

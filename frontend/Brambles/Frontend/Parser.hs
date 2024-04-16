@@ -7,6 +7,7 @@ import Brambles.Frontend.Lexer (Parser)
 import qualified Brambles.Frontend.Lexer as L
 
 import Text.Megaparsec (parseError, observing, (<?>), sepBy, try, eof)
+import Control.Monad.Combinators (eitherP)
 import Control.Monad.Combinators.Expr
 
 data SourceLoc = SourceLoc
@@ -29,7 +30,7 @@ type instance XSWhile    'Parsed = SourceLoc
 type instance XSReturn   'Parsed = SourceLoc
 
 type instance XBlock     'Parsed = SourceLoc
-type instance XProg      'Parsed = SourceLoc
+type instance XModule    'Parsed = SourceLoc
 
 
 parseGuardMb :: Parser a -> Parser b -> Parser (Maybe b)
@@ -62,7 +63,7 @@ exprP =
       <|> intLitP
       <|> boolLitP
       <|> eblockP
-      <|> functionP
+      <|> EFunc <$> functionP
       <|> ifP
       <|> try callP
       <|> try assignP
@@ -92,13 +93,14 @@ exprP =
         binary name f = InfixL (EBinOp SourceLoc f <$ L.symbol name)
 
     -- fn name(t0 arg0, ...) -> returnType { ... }
-    functionP = parseGuard L.fn $ do
-        name <- varP
-        (vars, params) <- unzip <$> L.parens (varAndTypeP `sepBy` L.comma)
-        returns <- L.returnArrow *> typeP
-        EFunc (SourceLoc, TCallable params returns) name vars <$> blockP
-      where
-        varAndTypeP = (,) <$> (varP <* L.colon) <*> typeP
+functionP :: Parser (Func Name 'Parsed)
+functionP = parseGuard L.fn $ do
+    name <- varP
+    (vars, params) <- unzip <$> L.parens (varAndTypeP `sepBy` L.comma)
+    returns <- L.returnArrow *> typeP
+    Func (SourceLoc, TCallable params returns) name vars <$> blockP
+  where
+    varAndTypeP = (,) <$> (varP <* L.colon) <*> typeP
 
 statementP :: Parser (Stmt Name 'Parsed)
 statementP = 
@@ -119,7 +121,12 @@ statementP =
 bracedStmtsP :: Parser [Stmt Name 'Parsed]
 bracedStmtsP = L.braces $ many statementP
 
-programP :: Parser (Prog Name 'Parsed)
-programP = let stmtsP = L.spaceConsumer *> many statementP <* eof
-  in Globals SourceLoc <$> stmtsP
+programP :: Parser (Module Name 'Parsed)
+programP = do
+    L.spaceConsumer
+    topLevel <- many $ eitherP (functionP <* L.semicolon) statementP
+    eof
+    pure $ Module SourceLoc 
+      (rights topLevel) -- globals
+      (lefts  topLevel) -- functions
 

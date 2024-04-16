@@ -72,30 +72,45 @@ genExpr =
         , AST.ECall     SourceLoc <$> (AST.EVar SourceLoc <$> genVar) <*> Gen.list paramRange genExpr  -- for now, only var name
         , AST.EAssign   SourceLoc <$> genVar <*> genExpr
         , AST.EBlock              <$> genBlock
-        , genFunction
+        , AST.EFunc               <$> genFunction
         , AST.EIf       SourceLoc <$> genExpr <*> genBlock <*> Gen.maybe genBlock
         ]
-    where
-      genFunction :: Gen (AST.Expr AST.Name 'AST.Parsed)
-      genFunction = do
-          (params, paramTs) <- unzip <$> Gen.list paramRange ((,) <$> genVar <*> genType)
-          let genCallable = AST.TCallable paramTs <$> genType
-          let genLocAndCallable = (,) SourceLoc <$> genCallable
-          AST.EFunc <$> genLocAndCallable <*> genVar <*> pure params <*> genBlock
+
+genFunction :: Gen (AST.Func AST.Name 'AST.Parsed)
+genFunction = do
+    (params, paramTs) <- unzip <$> Gen.list paramRange ((,) <$> genVar <*> genType)
+    let genCallable = AST.TCallable paramTs <$> genType
+    let genLocAndCallable = (,) SourceLoc <$> genCallable
+    AST.Func 
+        <$> genLocAndCallable 
+        <*> genVar 
+        <*> pure params 
+        <*> genBlock
 
 genStmt :: Gen (AST.Stmt AST.Name 'AST.Parsed)
 genStmt =
     Gen.choice
-        [ AST.SExpr SourceLoc <$> genExpr
-        , AST.SDecl <$> genLocAndType <*> genVar <*> genExpr
+        [ AST.SExpr SourceLoc 
+            <$> genExpr
+        , AST.SDecl 
+            <$> genLocAndType 
+            <*> genVar 
+            <*> genExpr
         -- TODO: while
-        , AST.SReturn SourceLoc <$> genExpr
+        , AST.SReturn SourceLoc 
+            <$> genExpr
         ]
   where
     genLocAndType = (,) SourceLoc <$> genType
 
-genProgram :: Gen (AST.Prog AST.Name 'AST.Parsed)
+genProgram :: Gen (AST.Module AST.Name 'AST.Parsed)
 genProgram = 
-  let genStatements = Gen.list progStmtRange genStmt
-  in AST.Globals SourceLoc <$> genStatements
-    
+  let 
+    genStatements = Gen.list progStmtRange $
+        Gen.filter (not . AST.isFunc) genStmt
+    genFunctions  = Gen.list progStmtRange genFunction
+  in 
+    AST.Module SourceLoc 
+        <$> genStatements 
+        <*> genFunctions
+
